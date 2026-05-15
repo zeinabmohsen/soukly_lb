@@ -1,0 +1,1939 @@
+"use client"
+
+import { useState } from "react"
+import { Facebook, Instagram, Mail, Phone, MapPin, MessageCircle, Youtube, Twitter, Clock, Mail as MailIcon, ArrowLeft, Menu, X } from "lucide-react"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import type { Store } from "@/store/api/storeApi"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type TemplateId =
+  | "minimal"
+  | "bold"
+  | "elegant"
+  | "modern"
+  | "cinematic"
+  | "glass"
+  | "geometric"
+  | "luxury"
+  | "wave"
+  | "magazine"
+  | "showcase"
+  | "reel"
+
+export type FontFamily = "modern" | "classic" | "elegant" | "bold"
+
+export type PaymentMethod = "visa" | "mastercard" | "amex" | "whish" | "omt" | "cod"
+
+export const ALL_PAYMENT_METHODS: PaymentMethod[] = ["visa", "mastercard", "amex", "whish", "omt", "cod"]
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  visa:       "VISA",
+  mastercard: "Mastercard",
+  amex:       "AMEX",
+  whish:      "Whish",
+  omt:        "OMT",
+  cod:        "Cash on Delivery",
+}
+
+export type CtaConfig = { enabled: boolean; label: string; link: string }
+
+export type AnnouncementBar = {
+  enabled: boolean
+  text: string
+  bgColor: string
+  textColor: string
+  link: string
+}
+
+export type AboutSection = {
+  enabled: boolean
+  heading: string
+  body: string
+  imageUrl: string
+}
+
+export type FooterColumn = {
+  title: string
+  links: { label: string; url: string }[]
+}
+
+export type Newsletter = {
+  enabled: boolean
+  heading: string
+  subheading: string
+}
+
+// ─── Custom navigation ────────────────────────────────────────────────────────
+
+export type NavLink = { label: string; url: string }
+
+export type StoreNav = {
+  links: NavLink[]
+  showCart: boolean
+}
+
+export const DEFAULT_NAV: StoreNav = {
+  links: [
+    { label: "Shop",    url: "#products" },
+    { label: "About",   url: "#about" },
+    { label: "Contact", url: "#contact" },
+  ],
+  showCart: true,
+}
+
+// ─── Theme controls ───────────────────────────────────────────────────────────
+
+export type BorderRadius   = "sharp" | "rounded" | "pill"
+export type ContainerWidth = "narrow" | "standard" | "wide" | "full"
+export type SectionSpacing = "compact" | "comfortable" | "airy"
+export type ProductCardStyle = "compact" | "standard" | "cinematic"
+
+export type Theme = {
+  borderRadius:     BorderRadius
+  containerWidth:   ContainerWidth
+  sectionSpacing:   SectionSpacing
+  productCardStyle: ProductCardStyle
+}
+
+export const DEFAULT_THEME: Theme = {
+  borderRadius:     "rounded",
+  containerWidth:   "standard",
+  sectionSpacing:   "comfortable",
+  productCardStyle: "standard",
+}
+
+// Token classes derived from a theme — kept here so callers stay in sync.
+export function themeTokens(t: Theme) {
+  const container = (
+    { narrow: "max-w-3xl", standard: "max-w-6xl", wide: "max-w-7xl", full: "max-w-none" } as const
+  )[t.containerWidth]
+  const sectionPad = (
+    { compact: "py-8", comfortable: "py-12", airy: "py-20" } as const
+  )[t.sectionSpacing]
+  const radius = (
+    { sharp: "rounded-none", rounded: "rounded-xl", pill: "rounded-3xl" } as const
+  )[t.borderRadius]
+  const radiusInput = (
+    { sharp: "rounded-none", rounded: "rounded-lg", pill: "rounded-full" } as const
+  )[t.borderRadius]
+  return { container, sectionPad, radius, radiusInput }
+}
+
+// ─── Per-section background colors (overrides defaults; "" = use default) ────
+
+export type BgColors = {
+  about:    string
+  products: string
+  footer:   string
+}
+
+export const DEFAULT_BG_COLORS: BgColors = {
+  about:    "",
+  products: "",
+  footer:   "",
+}
+
+// ─── Footer customization (colors, alignment, copyright text) ────────────────
+
+export type FooterStyle = "dark" | "light" | "branded" | "minimal" | "custom"
+
+export type FooterColors = {
+  // Empty string = use the default for the chosen footerStyle.
+  text:    string  // body text + contact rows
+  heading: string  // column titles ("Contact", custom column titles)
+  accent:  string  // "Powered by Soukly" link + social icon hover + newsletter button
+  border:  string  // dividers between footer sections
+}
+
+export type FooterAlign = "left" | "center"
+
+export const DEFAULT_FOOTER_COLORS: FooterColors = {
+  text: "", heading: "", accent: "", border: "",
+}
+
+// Resolved color values per preset. Custom uses the seller's overrides directly.
+type ResolvedFooterTheme = { bg: string; text: string; heading: string; accent: string; border: string }
+
+export function resolveFooterTheme(
+  style: FooterStyle,
+  primaryColor: string,
+  override: { bg: string; colors: FooterColors },
+): ResolvedFooterTheme {
+  const presets: Record<Exclude<FooterStyle, "custom">, ResolvedFooterTheme> = {
+    dark:    { bg: "#0f172a", text: "#94a3b8", heading: "#94a3b8", accent: primaryColor, border: "rgba(255,255,255,0.1)"  },
+    light:   { bg: "#ffffff", text: "#475569", heading: "#0f172a", accent: primaryColor, border: "rgba(15,23,42,0.1)"     },
+    branded: { bg: primaryColor, text: "rgba(255,255,255,0.85)", heading: "#ffffff", accent: "#ffffff", border: "rgba(255,255,255,0.18)" },
+    minimal: { bg: "#fafafa", text: "#525252", heading: "#171717", accent: primaryColor, border: "rgba(0,0,0,0.08)"       },
+  }
+  // Start from preset (or dark for "custom"), then apply seller's overrides on top.
+  const base = style === "custom" ? presets.dark : presets[style]
+  return {
+    bg:      override.bg          || base.bg,
+    text:    override.colors.text    || base.text,
+    heading: override.colors.heading || base.heading,
+    accent:  override.colors.accent  || base.accent,
+    border:  override.colors.border  || base.border,
+  }
+}
+
+// ─── Fonts (Google Fonts subset + system) ────────────────────────────────────
+
+export type FontPreset = {
+  id:     string                 // builder picker id, also used as Google Fonts query
+  label:  string                 // display label
+  family: string                 // CSS font-family value
+  google: string | null          // Google Fonts family query (null = system)
+}
+
+export const FONT_PRESETS: FontPreset[] = [
+  { id: "system",        label: "System",                  family: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", google: null },
+  { id: "inter",         label: "Inter",                   family: "'Inter', sans-serif",                  google: "Inter:wght@400;500;600;700;800" },
+  { id: "poppins",       label: "Poppins",                 family: "'Poppins', sans-serif",                google: "Poppins:wght@400;500;600;700;800" },
+  { id: "montserrat",    label: "Montserrat",              family: "'Montserrat', sans-serif",             google: "Montserrat:wght@400;500;600;700;800" },
+  { id: "raleway",       label: "Raleway",                 family: "'Raleway', sans-serif",                google: "Raleway:wght@400;500;600;700;800" },
+  { id: "space-grotesk", label: "Space Grotesk",           family: "'Space Grotesk', sans-serif",          google: "Space+Grotesk:wght@400;500;600;700" },
+  { id: "playfair",      label: "Playfair Display",        family: "'Playfair Display', serif",            google: "Playfair+Display:wght@400;600;700;800" },
+  { id: "lora",          label: "Lora",                    family: "'Lora', serif",                        google: "Lora:wght@400;500;600;700" },
+  { id: "merriweather",  label: "Merriweather",            family: "'Merriweather', serif",                google: "Merriweather:wght@400;700;900" },
+  { id: "cormorant",     label: "Cormorant Garamond",      family: "'Cormorant Garamond', serif",          google: "Cormorant+Garamond:wght@400;500;600;700" },
+  { id: "dm-serif",      label: "DM Serif Display",        family: "'DM Serif Display', serif",            google: "DM+Serif+Display:opsz@36" },
+]
+
+const FONT_BY_ID: Record<string, FontPreset> = Object.fromEntries(FONT_PRESETS.map((f) => [f.id, f]))
+
+export function fontFamily(id: string | undefined): string {
+  if (!id) return FONT_BY_ID.system.family
+  return (FONT_BY_ID[id] ?? FONT_BY_ID.system).family
+}
+
+export type Fonts = {
+  headingFont: string
+  bodyFont:    string
+}
+
+export const DEFAULT_FONTS: Fonts = {
+  headingFont: "system",
+  bodyFont:    "system",
+}
+
+// ─── Hero variant + video ─────────────────────────────────────────────────────
+
+export type HeroAlign = "left" | "center" | "right"
+
+export type HeroVariant = {
+  align:          HeroAlign
+  overlayOpacity: number   // 0–100; only honored on templates with bg images/gradients
+  overlayColor:   string   // hex color for the dark/tinted wash over hero media
+  videoUrl:       string   // optional — looping video bg for templates that show one
+  imageUrl:       string   // optional — still image bg for templates that show one (separate from store-card cover)
+}
+
+export const DEFAULT_HERO_VARIANT: HeroVariant = {
+  align:          "left",
+  overlayOpacity: 55,
+  overlayColor:   "#000000",
+  videoUrl:       "",
+  imageUrl:       "",
+}
+
+// Hex (#RRGGBB) → rgba(r,g,b,alpha). Tolerant: returns black if the hex is malformed.
+function hexToRgba(hex: string, alpha: number): string {
+  const m = (hex || "#000000").replace("#", "")
+  if (m.length !== 6 || /[^0-9a-f]/i.test(m)) return `rgba(0,0,0,${alpha})`
+  const r = parseInt(m.substring(0, 2), 16)
+  const g = parseInt(m.substring(2, 4), 16)
+  const b = parseInt(m.substring(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
+// ─── Trust badges ─────────────────────────────────────────────────────────────
+
+export type TrustBadgeKey =
+  | "free-shipping" | "returns" | "secure" | "support" | "quality" | "authentic" | "made-in-lebanon" | "fast-delivery"
+
+export type TrustBadgeItem = {
+  key:      TrustBadgeKey
+  label:    string
+  sublabel: string
+}
+
+export type TrustBadges = {
+  enabled: boolean
+  items:   TrustBadgeItem[]
+}
+
+export const TRUST_BADGE_PRESETS: Record<TrustBadgeKey, { defaultLabel: string; defaultSublabel: string }> = {
+  "free-shipping":   { defaultLabel: "Free Shipping",   defaultSublabel: "On orders over $50"            },
+  "returns":         { defaultLabel: "7-Day Returns",   defaultSublabel: "Easy & hassle-free"            },
+  "secure":          { defaultLabel: "Secure Checkout", defaultSublabel: "Your data is protected"        },
+  "support":         { defaultLabel: "24/7 Support",    defaultSublabel: "We're here to help"            },
+  "quality":         { defaultLabel: "Quality Assured", defaultSublabel: "Hand-checked before shipping"  },
+  "authentic":       { defaultLabel: "100% Authentic",  defaultSublabel: "Direct from the maker"         },
+  "made-in-lebanon": { defaultLabel: "Made in Lebanon", defaultSublabel: "Crafted with local pride"      },
+  "fast-delivery":   { defaultLabel: "Fast Delivery",   defaultSublabel: "Ships within 24 hours"         },
+}
+
+export const DEFAULT_TRUST_BADGES: TrustBadges = {
+  enabled: false,
+  items: [
+    { key: "free-shipping", label: TRUST_BADGE_PRESETS["free-shipping"].defaultLabel, sublabel: TRUST_BADGE_PRESETS["free-shipping"].defaultSublabel },
+    { key: "returns",       label: TRUST_BADGE_PRESETS["returns"].defaultLabel,       sublabel: TRUST_BADGE_PRESETS["returns"].defaultSublabel       },
+    { key: "secure",        label: TRUST_BADGE_PRESETS["secure"].defaultLabel,        sublabel: TRUST_BADGE_PRESETS["secure"].defaultSublabel        },
+  ],
+}
+
+export type StorefrontView = {
+  // identity
+  storeName: string
+  tagline: string
+  description: string
+  logoUrl: string
+  heroImage: string
+
+  // hero
+  ctaText: string
+  ctaLink: string
+  ctaHref?: string                 // render-time override; if absent, hero renders as <button>
+  secondaryCta: CtaConfig
+  template: TemplateId
+  primaryColor: string
+  secondaryColor: string
+  fontFamily: FontFamily            // legacy; kept for backwards compat — fonts.headingFont takes precedence
+  rtl: boolean
+
+  // hero variant (alignment, overlay, video bg)
+  heroVariant: HeroVariant
+
+  // navigation (replaces Soukly nav on the public page)
+  nav: StoreNav
+
+  // theme + fonts + section bgs
+  theme: Theme
+  fonts: Fonts
+  bgColors: BgColors
+
+  // sections
+  announcement: AnnouncementBar
+  aboutSection: AboutSection
+  trustBadges:  TrustBadges
+
+  // footer
+  showFooter: boolean
+  footerStyle: FooterStyle
+  footerColors: FooterColors
+  footerAlign: FooterAlign
+  footerCopyright: string                   // empty = use default "© YEAR Store. All rights reserved."
+  footerAbout: string
+  footerEmail: string
+  footerPhone: string
+  footerWhatsapp: string
+  footerAddress: string
+  businessHours: string
+  showSocial: boolean
+  socialFacebook: string
+  socialInstagram: string
+  socialTiktok: string
+  socialYoutube: string
+  socialTwitter: string
+  footerColumns: FooterColumn[]
+  newsletter: Newsletter
+  paymentMethods: PaymentMethod[]
+}
+
+export const DEFAULT_ANNOUNCEMENT: AnnouncementBar = {
+  enabled: false,
+  text: "Free shipping on orders over $50",
+  bgColor: "#1f2937",
+  textColor: "#ffffff",
+  link: "",
+}
+
+export const DEFAULT_SECONDARY_CTA: CtaConfig = {
+  enabled: true,
+  label: "Learn More",
+  link: "",
+}
+
+export const DEFAULT_ABOUT: AboutSection = {
+  enabled: false,
+  heading: "Our Story",
+  body: "",
+  imageUrl: "",
+}
+
+export const DEFAULT_NEWSLETTER: Newsletter = {
+  enabled: false,
+  heading: "Stay in the loop",
+  subheading: "Get new arrivals and exclusive offers in your inbox.",
+}
+
+export const DEFAULT_FOOTER_COLUMNS: FooterColumn[] = [
+  {
+    title: "Shop",
+    links: [
+      { label: "All Products", url: "#products" },
+      { label: "New Arrivals", url: "#products" },
+    ],
+  },
+]
+
+export const STOREFRONT_DEFAULTS = {
+  ctaText: "Shop Now",
+  ctaLink: "#products",
+  template: "minimal" as TemplateId,
+  primaryColor: "#8B5CF6",
+  secondaryColor: "#EC4899",
+  fontFamily: "modern" as FontFamily,
+  rtl: false,
+  showFooter: true,
+  showSocial: true,
+}
+
+// ─── Normalize ────────────────────────────────────────────────────────────────
+
+const str = (obj: Record<string, unknown> | null | undefined, k: string): string | undefined =>
+  obj && typeof obj[k] === "string" ? (obj[k] as string) : undefined
+const bool = (obj: Record<string, unknown> | null | undefined, k: string): boolean | undefined =>
+  obj && typeof obj[k] === "boolean" ? (obj[k] as boolean) : undefined
+const obj = (root: Record<string, unknown> | null | undefined, k: string): Record<string, unknown> | undefined => {
+  const v = root?.[k]
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
+}
+const arr = <T,>(root: Record<string, unknown> | null | undefined, k: string): T[] | undefined => {
+  const v = root?.[k]
+  return Array.isArray(v) ? (v as T[]) : undefined
+}
+
+function readAnnouncement(hero: Record<string, unknown> | null | undefined): AnnouncementBar {
+  const a = obj(hero, "announcement") ?? {}
+  return {
+    enabled:   bool(a, "enabled")  ?? DEFAULT_ANNOUNCEMENT.enabled,
+    text:      str(a, "text")      ?? DEFAULT_ANNOUNCEMENT.text,
+    bgColor:   str(a, "bgColor")   ?? DEFAULT_ANNOUNCEMENT.bgColor,
+    textColor: str(a, "textColor") ?? DEFAULT_ANNOUNCEMENT.textColor,
+    link:      str(a, "link")      ?? DEFAULT_ANNOUNCEMENT.link,
+  }
+}
+
+function readSecondaryCta(hero: Record<string, unknown> | null | undefined): CtaConfig {
+  const c = obj(hero, "secondaryCta") ?? {}
+  return {
+    enabled: bool(c, "enabled") ?? DEFAULT_SECONDARY_CTA.enabled,
+    label:   str(c, "label")    ?? DEFAULT_SECONDARY_CTA.label,
+    link:    str(c, "link")     ?? DEFAULT_SECONDARY_CTA.link,
+  }
+}
+
+function readAbout(hero: Record<string, unknown> | null | undefined): AboutSection {
+  const a = obj(hero, "aboutSection") ?? {}
+  return {
+    enabled:  bool(a, "enabled")  ?? DEFAULT_ABOUT.enabled,
+    heading:  str(a, "heading")   ?? DEFAULT_ABOUT.heading,
+    body:     str(a, "body")      ?? DEFAULT_ABOUT.body,
+    imageUrl: str(a, "imageUrl")  ?? DEFAULT_ABOUT.imageUrl,
+  }
+}
+
+function readNewsletter(footer: Record<string, unknown> | null | undefined): Newsletter {
+  const n = obj(footer, "newsletter") ?? {}
+  return {
+    enabled:    bool(n, "enabled")    ?? DEFAULT_NEWSLETTER.enabled,
+    heading:    str(n, "heading")     ?? DEFAULT_NEWSLETTER.heading,
+    subheading: str(n, "subheading")  ?? DEFAULT_NEWSLETTER.subheading,
+  }
+}
+
+function readFooterColumns(footer: Record<string, unknown> | null | undefined): FooterColumn[] {
+  const cols = arr<unknown>(footer, "footerColumns")
+  if (!cols) return []
+  return cols
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+    .map((c) => ({
+      title: typeof c.title === "string" ? c.title : "",
+      links: Array.isArray(c.links)
+        ? (c.links as unknown[])
+            .filter((l): l is Record<string, unknown> => !!l && typeof l === "object")
+            .map((l) => ({
+              label: typeof l.label === "string" ? l.label : "",
+              url:   typeof l.url   === "string" ? l.url   : "",
+            }))
+            .filter((l) => l.label && l.url)
+        : [],
+    }))
+    .filter((c) => c.title || c.links.length > 0)
+}
+
+function readPaymentMethods(footer: Record<string, unknown> | null | undefined): PaymentMethod[] {
+  const list = arr<unknown>(footer, "paymentMethods")
+  if (!list) return []
+  return list.filter((m): m is PaymentMethod =>
+    typeof m === "string" && (ALL_PAYMENT_METHODS as readonly string[]).includes(m)
+  )
+}
+
+function readFooterColors(footer: Record<string, unknown> | null | undefined): FooterColors {
+  const c = obj(footer, "footerColors") ?? {}
+  return {
+    text:    str(c, "text")    ?? "",
+    heading: str(c, "heading") ?? "",
+    accent:  str(c, "accent")  ?? "",
+    border:  str(c, "border")  ?? "",
+  }
+}
+
+function readNav(hero: Record<string, unknown> | null | undefined): StoreNav {
+  const n = obj(hero, "nav")
+  if (!n) return DEFAULT_NAV
+  const links = Array.isArray(n.links)
+    ? (n.links as unknown[])
+        .filter((l): l is Record<string, unknown> => !!l && typeof l === "object")
+        .map((l) => ({
+          label: typeof l.label === "string" ? l.label : "",
+          url:   typeof l.url   === "string" ? l.url   : "",
+        }))
+        .filter((l) => l.label && l.url)
+    : DEFAULT_NAV.links
+  return {
+    links,
+    showCart: bool(n, "showCart") ?? DEFAULT_NAV.showCart,
+  }
+}
+
+function readTheme(hero: Record<string, unknown> | null | undefined): Theme {
+  const t = obj(hero, "theme") ?? {}
+  const radii  = ["sharp", "rounded", "pill"] as const
+  const widths = ["narrow", "standard", "wide", "full"] as const
+  const space  = ["compact", "comfortable", "airy"] as const
+  const cards  = ["compact", "standard", "cinematic"] as const
+  const pick = <V extends string>(val: unknown, allowed: readonly V[], fallback: V): V =>
+    typeof val === "string" && (allowed as readonly string[]).includes(val) ? (val as V) : fallback
+  return {
+    borderRadius:     pick(t.borderRadius,     radii,  DEFAULT_THEME.borderRadius),
+    containerWidth:   pick(t.containerWidth,   widths, DEFAULT_THEME.containerWidth),
+    sectionSpacing:   pick(t.sectionSpacing,   space,  DEFAULT_THEME.sectionSpacing),
+    productCardStyle: pick(t.productCardStyle, cards,  DEFAULT_THEME.productCardStyle),
+  }
+}
+
+function readFonts(hero: Record<string, unknown> | null | undefined): Fonts {
+  const f = obj(hero, "fonts") ?? {}
+  const valid = (id: unknown, fallback: string) =>
+    typeof id === "string" && FONT_BY_ID[id] ? id : fallback
+  return {
+    headingFont: valid(f.headingFont, DEFAULT_FONTS.headingFont),
+    bodyFont:    valid(f.bodyFont,    DEFAULT_FONTS.bodyFont),
+  }
+}
+
+function readBgColors(hero: Record<string, unknown> | null | undefined): BgColors {
+  const b = obj(hero, "bgColors") ?? {}
+  return {
+    about:    str(b, "about")    ?? "",
+    products: str(b, "products") ?? "",
+    footer:   str(b, "footer")   ?? "",
+  }
+}
+
+function readHeroVariant(hero: Record<string, unknown> | null | undefined): HeroVariant {
+  const h = obj(hero, "heroVariant") ?? {}
+  const align: HeroAlign = h.align === "center" || h.align === "right" || h.align === "left"
+    ? h.align
+    : DEFAULT_HERO_VARIANT.align
+  const op = typeof h.overlayOpacity === "number" ? h.overlayOpacity : DEFAULT_HERO_VARIANT.overlayOpacity
+  return {
+    align,
+    overlayOpacity: Math.max(0, Math.min(100, op)),
+    overlayColor:   str(h, "overlayColor") ?? DEFAULT_HERO_VARIANT.overlayColor,
+    videoUrl:       str(h, "videoUrl")     ?? "",
+    imageUrl:       str(h, "imageUrl")     ?? "",
+  }
+}
+
+function readTrustBadges(hero: Record<string, unknown> | null | undefined): TrustBadges {
+  const t = obj(hero, "trustBadges")
+  if (!t) return DEFAULT_TRUST_BADGES
+  const items = Array.isArray(t.items)
+    ? (t.items as unknown[])
+        .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+        .map((i) => {
+          const key = typeof i.key === "string" && i.key in TRUST_BADGE_PRESETS
+            ? (i.key as TrustBadgeKey)
+            : null
+          if (!key) return null
+          const preset = TRUST_BADGE_PRESETS[key]
+          return {
+            key,
+            label:    typeof i.label    === "string" && i.label    ? i.label    : preset.defaultLabel,
+            sublabel: typeof i.sublabel === "string"               ? i.sublabel : preset.defaultSublabel,
+          } as TrustBadgeItem
+        })
+        .filter((i): i is TrustBadgeItem => i !== null)
+    : DEFAULT_TRUST_BADGES.items
+  return {
+    enabled: bool(t, "enabled") ?? DEFAULT_TRUST_BADGES.enabled,
+    items,
+  }
+}
+
+export function storeToView(store: Store, opts: { ctaHref?: string } = {}): StorefrontView {
+  const hero   = (store.hero   ?? {}) as Record<string, unknown>
+  const footer = (store.footer ?? {}) as Record<string, unknown>
+
+  const ctaLink = str(hero, "ctaLink") ?? str(hero, "cta_link") ?? STOREFRONT_DEFAULTS.ctaLink
+
+  return {
+    storeName:       store.name,
+    tagline:         str(hero, "tagline") ?? "",
+    description:     store.description ?? "",
+    logoUrl:         store.logo_url ?? "",
+    heroImage:       store.cover_url ?? "",
+    ctaText:         str(hero, "ctaText")  ?? str(hero, "cta_text") ?? STOREFRONT_DEFAULTS.ctaText,
+    ctaLink,
+    ctaHref:         opts.ctaHref ?? ctaLink,
+    secondaryCta:    readSecondaryCta(hero),
+    template:        (str(hero, "template") as TemplateId)  ?? STOREFRONT_DEFAULTS.template,
+    primaryColor:    str(hero, "primaryColor")              ?? STOREFRONT_DEFAULTS.primaryColor,
+    secondaryColor:  str(hero, "secondaryColor")            ?? STOREFRONT_DEFAULTS.secondaryColor,
+    fontFamily:      (str(hero, "fontFamily") as FontFamily)?? STOREFRONT_DEFAULTS.fontFamily,
+    rtl:             bool(hero, "rtl")                      ?? STOREFRONT_DEFAULTS.rtl,
+    heroVariant:     readHeroVariant(hero),
+    nav:             readNav(hero),
+    theme:           readTheme(hero),
+    fonts:           readFonts(hero),
+    bgColors:        readBgColors(hero),
+    announcement:    readAnnouncement(hero),
+    aboutSection:    readAbout(hero),
+    trustBadges:     readTrustBadges(hero),
+    showFooter:      bool(footer, "showFooter")             ?? STOREFRONT_DEFAULTS.showFooter,
+    footerStyle:     ((s: unknown): FooterStyle => {
+                       const allowed = ["dark", "light", "branded", "minimal", "custom"] as const
+                       return typeof s === "string" && (allowed as readonly string[]).includes(s) ? (s as FooterStyle) : "dark"
+                     })(str(footer, "footerStyle")),
+    footerColors:    readFooterColors(footer),
+    footerAlign:     str(footer, "footerAlign") === "center" ? "center" : "left",
+    footerCopyright: str(footer, "footerCopyright") ?? "",
+    footerAbout:     str(footer, "footerAbout") ?? str(footer, "about_text")    ?? "",
+    footerEmail:     str(footer, "footerEmail") ?? str(footer, "contact_email") ?? "",
+    footerPhone:     str(footer, "footerPhone") ?? "",
+    footerWhatsapp:  store.whatsapp ?? "",
+    footerAddress:   str(footer, "footerAddress") ?? "",
+    businessHours:   str(footer, "businessHours") ?? "",
+    showSocial:      bool(footer, "showSocial") ?? STOREFRONT_DEFAULTS.showSocial,
+    socialFacebook:  store.facebook  ?? "",
+    socialInstagram: store.instagram ?? "",
+    socialTiktok:    store.tiktok    ?? "",
+    socialYoutube:   str(footer, "socialYoutube") ?? "",
+    socialTwitter:   str(footer, "socialTwitter") ?? "",
+    footerColumns:   readFooterColumns(footer),
+    newsletter:      readNewsletter(footer),
+    paymentMethods:  readPaymentMethods(footer),
+  }
+}
+
+// ─── Inline brand SVGs (lucide doesn't ship Pinterest/TikTok) ────────────────
+
+function TiktokIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.51a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.04Z" />
+    </svg>
+  )
+}
+
+// ─── Announcement bar ─────────────────────────────────────────────────────────
+
+export function StorefrontAnnouncementBar({ view }: { view: StorefrontView }) {
+  const a = view.announcement
+  if (!a.enabled || !a.text) return null
+
+  const inner = (
+    <span className="text-xs sm:text-sm font-medium tracking-wide">{a.text}</span>
+  )
+
+  return (
+    <div
+      className="w-full text-center px-4 py-2"
+      style={{ backgroundColor: a.bgColor, color: a.textColor }}
+      dir={view.rtl ? "rtl" : "ltr"}
+    >
+      {a.link ? (
+        <a href={a.link} className="hover:opacity-80 transition-opacity">{inner}</a>
+      ) : inner}
+    </div>
+  )
+}
+
+// ─── About section ────────────────────────────────────────────────────────────
+
+export function StorefrontAbout({ view }: { view: StorefrontView }) {
+  const a = view.aboutSection
+  if (!a.enabled || (!a.heading && !a.body && !a.imageUrl)) return null
+
+  const fontClass = FONT_CLASS[view.fontFamily] ?? "font-sans"
+  const tokens = themeTokens(view.theme)
+  const bgStyle = view.bgColors.about ? { backgroundColor: view.bgColors.about } : undefined
+  const headingStyle: React.CSSProperties =
+    view.fonts.headingFont && view.fonts.headingFont !== "system"
+      ? { color: view.primaryColor, fontFamily: fontFamily(view.fonts.headingFont) }
+      : { color: view.primaryColor }
+
+  return (
+    <section
+      id="about"
+      className={cn("border-y", !bgStyle && "bg-muted/20")}
+      style={bgStyle}
+      dir={view.rtl ? "rtl" : "ltr"}
+    >
+      <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+        <div className={cn("grid gap-10 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+          {a.imageUrl && (
+            <div className={cn("overflow-hidden aspect-[4/3] bg-muted", tokens.radius)}>
+              <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="space-y-4">
+            {a.heading && (
+              <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
+                {a.heading}
+              </h2>
+            )}
+            {a.body && (
+              <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Mini-nav (used inside the builder preview only) ─────────────────────────
+
+export function StorefrontMiniNav({ view }: { view: StorefrontView }) {
+  return (
+    <div className="border-b px-6 py-3 flex items-center justify-between bg-white" dir={view.rtl ? "rtl" : "ltr"}>
+      <div className="flex items-center gap-2">
+        {view.logoUrl ? (
+          <img src={view.logoUrl} alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
+        ) : (
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+            style={{ background: `linear-gradient(135deg,${view.primaryColor},${view.secondaryColor})` }}
+          >
+            {view.storeName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <span className="font-bold text-sm tracking-tight" style={{ color: view.primaryColor }}>
+          {view.storeName}
+        </span>
+      </div>
+      <nav className="flex gap-5 text-xs text-muted-foreground">
+        {(view.rtl
+          ? ["منتجات", "عن المتجر", "تواصل"]
+          : ["Products", "About", "Contact"]
+        ).map((l) => (
+          <span key={l} className="hover:text-foreground cursor-pointer transition-colors">{l}</span>
+        ))}
+      </nav>
+    </div>
+  )
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+
+const FONT_CLASS: Record<FontFamily, string> = {
+  modern:  "font-sans",
+  classic: "font-serif",
+  elegant: "font-serif italic",
+  bold:    "font-sans font-black",
+}
+
+export function StorefrontHero({ view }: { view: StorefrontView }) {
+  const fontClass = FONT_CLASS[view.fontFamily] ?? "font-sans"
+  const { storeName, tagline, description, ctaText, ctaHref, secondaryCta, primaryColor, secondaryColor, template, rtl, heroVariant } = view
+  // Hero background image is independent from the store-card cover (`view.heroImage`).
+  // Templates that show a hero image use this dedicated field on heroVariant.
+  const heroImage = heroVariant.imageUrl
+
+  // Heading font override — only applies when seller picked a non-system font.
+  // Otherwise we keep the legacy Tailwind fontClass so existing stores look the same.
+  const headingStyle: React.CSSProperties | undefined =
+    view.fonts.headingFont && view.fonts.headingFont !== "system"
+      ? { fontFamily: fontFamily(view.fonts.headingFont) }
+      : undefined
+
+  // Primary CTA — anchor when href provided, plain button otherwise (preview in builder).
+  const PrimaryCta = ({ className, style, label }: { className: string; style?: React.CSSProperties; label?: string }) => {
+    const text = label ?? ctaText
+    return ctaHref
+      ? <a href={ctaHref} className={className} style={style}>{text}</a>
+      : <button className={className} style={style}>{text}</button>
+  }
+
+  // Secondary CTA — anchor when label and link both set; button when only label set; null when disabled.
+  const SecondaryCta = ({ className, style, fallbackLabel }: { className: string; style?: React.CSSProperties; fallbackLabel: string }) => {
+    if (!secondaryCta.enabled) return null
+    const label = secondaryCta.label || fallbackLabel
+    if (!label) return null
+    if (secondaryCta.link && ctaHref !== undefined) {
+      // public-page render
+      return <a href={secondaryCta.link} className={className} style={style}>{label}</a>
+    }
+    return <button className={className} style={style}>{label}</button>
+  }
+
+  const wrapDir = rtl ? "rtl" : "ltr"
+
+  // Hero alignment helper (applied in templates with single text block over full-bleed bg).
+  const align = heroVariant.align
+  const alignClass =
+    align === "center" ? "text-center items-center mx-auto"
+    : align === "right" ? "text-right items-end ml-auto"
+    : "text-left items-start"
+  const flexAlignClass =
+    align === "center" ? "justify-center"
+    : align === "right" ? "justify-end"
+    : "justify-start"
+
+  // Overlay opacity for templates that use bg image/video with dark wash.
+  const overlayAlpha = heroVariant.overlayOpacity / 100
+  const heroVideoUrl = heroVariant.videoUrl
+
+  // ── 1. Minimal ──
+  if (template === "minimal") {
+    return (
+      <div dir={wrapDir} className="min-h-[480px] bg-white flex items-center justify-center px-10 py-16 text-center">
+        <div className="max-w-lg space-y-6">
+          {view.logoUrl ? (
+            <img src={view.logoUrl} alt="" className="mx-auto w-16 h-16 rounded-2xl object-cover shadow-lg" />
+          ) : (
+            <div
+              className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg"
+              style={{ background: `linear-gradient(135deg,${primaryColor},${secondaryColor})` }}
+            >
+              {storeName.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="space-y-3">
+            <h1 className={cn("text-4xl font-bold leading-tight tracking-tight", fontClass)} style={{ ...headingStyle, color: primaryColor }}>
+              {storeName}
+            </h1>
+            <p className="text-lg text-gray-400 font-light">{tagline}</p>
+            <p className="text-sm text-gray-300 leading-relaxed">{description}</p>
+          </div>
+          <div className={cn("flex gap-3 pt-2 justify-center", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
+              style={{ backgroundColor: primaryColor }}
+            />
+            <SecondaryCta
+              fallbackLabel={rtl ? "اكتشف المزيد" : "Learn More"}
+              className="px-7 py-2.5 rounded-full text-sm font-semibold border-2 hover:bg-black/5 transition-colors inline-block"
+              style={{ borderColor: primaryColor, color: primaryColor }}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 2. Bold ──
+  if (template === "bold") {
+    return (
+      <div
+        dir={wrapDir}
+        className={cn("min-h-[480px] px-10 py-16 flex items-center", flexAlignClass)}
+        style={{ background: `linear-gradient(135deg,${primaryColor} 0%,${secondaryColor} 100%)` }}
+      >
+        <div className={cn("max-w-2xl space-y-6 text-white", alignClass)}>
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
+            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            {rtl ? "مرحباً بك في متجرنا" : "Welcome to our store"}
+          </div>
+          <h1 className={cn("text-5xl font-extrabold leading-tight tracking-tight text-balance", fontClass)} style={headingStyle}>
+            {storeName}
+          </h1>
+          <p className="text-xl text-white/85 leading-relaxed">{tagline}</p>
+          <p className="text-sm text-white/65 max-w-lg leading-relaxed">{description}</p>
+          <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-9 py-3 bg-white rounded-full text-sm font-bold shadow-2xl hover:scale-105 transition-transform inline-block"
+              style={{ color: primaryColor }}
+            />
+            <SecondaryCta
+              fallbackLabel=""
+              className="px-9 py-3 rounded-full text-sm font-bold text-white border border-white/40 hover:bg-white/10 transition-colors inline-block"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 3. Elegant ──
+  if (template === "elegant") {
+    return (
+      <div dir={wrapDir} className="min-h-[480px] grid md:grid-cols-2 bg-stone-50">
+        <div className="px-10 py-16 flex items-center">
+          <div className="space-y-6">
+            <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
+              <div className="h-px w-10" style={{ backgroundColor: primaryColor }} />
+              <span className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: primaryColor }}>
+                {rtl ? "مرحباً بكم" : "Welcome"}
+              </span>
+            </div>
+            <h1 className={cn("text-4xl font-bold leading-tight tracking-tight", fontClass)} style={{ ...headingStyle, color: "#1a1a1a" }}>
+              {storeName}
+            </h1>
+            <p className="text-lg text-gray-500 italic leading-relaxed">{tagline}</p>
+            <p className="text-sm text-gray-400 leading-relaxed">{description}</p>
+            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+              <PrimaryCta
+                className="px-8 py-3 rounded-lg text-white text-sm font-semibold shadow-md hover:opacity-90 transition-opacity inline-block"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <SecondaryCta
+                fallbackLabel=""
+                className="px-8 py-3 rounded-lg text-sm font-semibold border-2 hover:bg-black/5 transition-colors inline-block"
+                style={{ borderColor: primaryColor, color: primaryColor }}
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          className="relative overflow-hidden min-h-[280px]"
+          style={{
+            background: heroVideoUrl
+              ? undefined
+              : heroImage
+                ? `url(${heroImage}) center/cover no-repeat`
+                : `linear-gradient(135deg,${primaryColor}20 0%,${secondaryColor}20 100%)`,
+          }}
+        >
+          {heroVideoUrl && (
+            <video
+              src={heroVideoUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          {!heroImage && !heroVideoUrl && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center space-y-3">
+                <div
+                  className="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-4xl"
+                  style={{ backgroundColor: `${primaryColor}15` }}
+                >
+                  🛍️
+                </div>
+                <p className="text-xs text-gray-400">{rtl ? "أضف صورة البطل" : "Add a hero image"}</p>
+              </div>
+            </div>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 h-1" style={{ backgroundColor: primaryColor }} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── 4. Modern ──
+  if (template === "modern") {
+    return (
+      <div dir={wrapDir} className="min-h-[480px] bg-slate-950 px-10 py-16 flex items-center">
+        <div className="w-full grid md:grid-cols-[1fr_auto] gap-10 items-center">
+          <div className="space-y-6 text-white">
+            <p className="text-xs font-bold uppercase tracking-[0.35em]" style={{ color: primaryColor }}>
+              {rtl ? "بوتيك حصري" : "Exclusive Boutique"}
+            </p>
+            <h1 className={cn("text-5xl font-extrabold leading-tight tracking-tight", fontClass)} style={headingStyle}>{storeName}</h1>
+            <p className="text-lg text-slate-400 leading-relaxed max-w-md">{tagline}</p>
+            <p className="text-sm text-slate-500 leading-relaxed max-w-md">{description}</p>
+            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+              <PrimaryCta
+                className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <SecondaryCta
+                fallbackLabel={rtl ? "تصفح" : "Browse"}
+                className="px-7 py-2.5 rounded-full text-sm font-bold border border-slate-700 text-slate-300 hover:border-slate-500 transition-colors inline-block"
+              />
+            </div>
+          </div>
+          <div className="hidden md:grid grid-cols-2 gap-3 w-52">
+            {[`${primaryColor}30`, `${secondaryColor}30`, `${secondaryColor}20`, `${primaryColor}20`].map((bg, i) => (
+              <div key={i} className={cn("h-28 rounded-2xl", i % 2 === 1 && "mt-5")} style={{ backgroundColor: bg }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 5. Cinematic ──
+  if (template === "cinematic") {
+    const hasMedia = !!(heroImage || heroVideoUrl)
+    const year = new Date().getFullYear()
+    return (
+      <div
+        dir={wrapDir}
+        className={cn("min-h-[560px] md:min-h-[640px] relative flex items-center overflow-hidden", flexAlignClass)}
+        style={{
+          background: hasMedia
+            ? undefined
+            : `linear-gradient(to bottom right,#0f172a,${primaryColor}35,#0f172a)`,
+        }}
+      >
+        {/* ── Background media ── */}
+        {heroVideoUrl ? (
+          <video
+            src={heroVideoUrl}
+            autoPlay muted loop playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : heroImage ? (
+          // Slow Ken Burns zoom on still images for cinematic motion.
+          <div
+            className="absolute inset-0 animate-[sf-kenburns_28s_ease-in-out_infinite_alternate]"
+            style={{ background: `url(${heroImage}) center/cover no-repeat` }}
+          />
+        ) : null}
+
+        {/* ── Tinted color overlay (seller's overlayColor + opacity) ── */}
+        {hasMedia && (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(to bottom, ${hexToRgba(heroVariant.overlayColor, overlayAlpha * 0.7)}, ${hexToRgba(heroVariant.overlayColor, overlayAlpha)})`,
+            }}
+          />
+        )}
+
+        {/* ── Vignette: corners fall off into shadow for cinema feel ── */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%)" }}
+        />
+
+        {/* ── Animated letterbox bars (slide in on mount) ── */}
+        <div className="absolute top-0 left-0 right-0 h-10 md:h-12 bg-black z-10 animate-[sf-letterbox-top_700ms_cubic-bezier(0.4,0,0.2,1)_both]" />
+        <div className="absolute bottom-0 left-0 right-0 h-10 md:h-12 bg-black z-10 animate-[sf-letterbox-bottom_700ms_cubic-bezier(0.4,0,0.2,1)_both]" />
+
+        {/* ── Soft brand glow ── */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="w-[560px] h-[560px] rounded-full blur-[160px] opacity-30"
+            style={{ backgroundColor: primaryColor }}
+          />
+        </div>
+
+        {/* ── Content (fades up on mount) ── */}
+        <div
+          className={cn(
+            "relative z-20 text-white px-6 md:px-10 py-20 md:py-28 space-y-7 max-w-2xl animate-[sf-fade-up_900ms_ease-out_both]",
+            alignClass,
+          )}
+        >
+          {/* Kicker with leading dot */}
+          <div className={cn("flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.5em] text-white/65", rtl && "flex-row-reverse")}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+            {rtl ? "مرحباً في" : "Welcome to"}
+          </div>
+
+          {/* Title — bigger, tighter line-height for cinematic impact */}
+          <h1
+            className={cn("text-5xl md:text-7xl font-extrabold text-white drop-shadow-2xl tracking-tight leading-[1.05]", fontClass)}
+            style={headingStyle}
+          >
+            {storeName}
+          </h1>
+
+          {/* Tagline */}
+          {tagline && (
+            <p className="text-lg md:text-xl text-white/75 leading-relaxed max-w-xl">{tagline}</p>
+          )}
+
+          {/* CTAs */}
+          <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-9 py-3.5 rounded-full text-sm font-bold text-white border border-white/25 hover:border-white/50 hover:bg-white/15 transition-all backdrop-blur-md inline-block"
+              style={{ backgroundColor: `${primaryColor}80` }}
+            />
+            <SecondaryCta
+              fallbackLabel=""
+              className="px-9 py-3.5 rounded-full text-sm font-bold text-white/70 hover:text-white transition-colors inline-block"
+            />
+          </div>
+
+          {/* Editorial credit line — tiny, like a film slate */}
+          <div className={cn("flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-white/45 pt-3", rtl && "flex-row-reverse")}>
+            <div className="h-px w-10 bg-white/30" />
+            {rtl ? `مجموعة مميزة · ${year}` : `Featured Collection · ${year}`}
+          </div>
+        </div>
+
+        {/* ── Scroll cue (sits above the bottom letterbox bar) ── */}
+        <a
+          href={ctaHref ?? "#products"}
+          aria-label={rtl ? "اسحب للأسفل" : "Scroll to discover"}
+          className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 text-white/50 hover:text-white/80 transition-colors animate-[sf-scroll-bounce_2s_ease-in-out_infinite]"
+        >
+          <span className="text-[9px] font-bold uppercase tracking-[0.3em]">
+            {rtl ? "اسحب" : "Scroll"}
+          </span>
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M19 12l-7 7-7-7" />
+          </svg>
+        </a>
+      </div>
+    )
+  }
+
+  // ── 6. Glass ──
+  if (template === "glass") {
+    return (
+      <div
+        dir={wrapDir}
+        className="min-h-[480px] relative flex items-center justify-center overflow-hidden px-10 py-16"
+        style={{ background: `linear-gradient(135deg,${primaryColor} 0%,${secondaryColor} 100%)` }}
+      >
+        <div className="absolute top-[-60px] right-[-60px] w-72 h-72 rounded-full blur-3xl opacity-40" style={{ backgroundColor: secondaryColor }} />
+        <div className="absolute bottom-[-60px] left-[-60px] w-72 h-72 rounded-full blur-3xl opacity-40" style={{ backgroundColor: primaryColor }} />
+        <div className="absolute top-1/2 left-1/4 w-40 h-40 rounded-full blur-2xl opacity-20" style={{ backgroundColor: "#ffffff" }} />
+
+        <div
+          className="relative z-10 rounded-3xl p-10 text-center max-w-lg w-full space-y-6"
+          style={{
+            backgroundColor: "rgba(255,255,255,0.15)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          }}
+        >
+          <div
+            className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold"
+            style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+          >
+            {storeName.slice(0, 1).toUpperCase()}
+          </div>
+          <h1 className={cn("text-4xl font-bold text-white leading-tight tracking-tight drop-shadow", fontClass)} style={headingStyle}>
+            {storeName}
+          </h1>
+          <p className="text-white/85 text-lg leading-relaxed">{tagline}</p>
+          <p className="text-white/65 text-sm leading-relaxed">{description}</p>
+          <div className={cn("flex gap-3 pt-2 justify-center", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-8 py-3 rounded-full text-sm font-bold text-white border border-white/40 hover:bg-white/20 transition-colors shadow-lg inline-block"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+            />
+            <SecondaryCta
+              fallbackLabel=""
+              className="px-8 py-3 rounded-full text-sm font-bold text-white/80 hover:text-white transition-colors inline-block"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 7. Geometric ──
+  if (template === "geometric") {
+    return (
+      <div dir={wrapDir} className="min-h-[480px] bg-white relative overflow-hidden flex items-center">
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ backgroundColor: `${primaryColor}18` }} />
+        <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full" style={{ backgroundColor: `${secondaryColor}15` }} />
+        <div className="absolute bottom-16 right-16 w-20 h-20 rounded-full" style={{ backgroundColor: `${primaryColor}12` }} />
+        <div className="absolute top-16 right-52 w-16 h-16 rounded-xl rotate-45" style={{ backgroundColor: `${secondaryColor}20` }} />
+
+        <div className={cn("relative z-10 px-14 py-16 max-w-xl space-y-6", rtl && "mr-auto ml-0")}>
+          <div className={cn("flex items-center gap-4", rtl && "flex-row-reverse")}>
+            <div className="w-1 h-14 rounded-full" style={{ backgroundColor: primaryColor }} />
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-[0.3em]" style={{ color: primaryColor }}>
+                {rtl ? "متجرنا" : "Our Store"}
+              </p>
+              <h1 className={cn("text-5xl font-bold leading-tight tracking-tight text-gray-900", fontClass)} style={headingStyle}>
+                {storeName}
+              </h1>
+            </div>
+          </div>
+          <p className="text-xl font-light text-gray-500 leading-relaxed">{tagline}</p>
+          <p className="text-sm text-gray-400 leading-relaxed">{description}</p>
+          <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
+              style={{ backgroundColor: primaryColor }}
+            />
+            <SecondaryCta
+              fallbackLabel={rtl ? "تعرف علينا" : "About Us"}
+              className="px-7 py-2.5 rounded-full text-sm font-semibold border-2 hover:bg-black/5 transition-colors inline-block"
+              style={{ borderColor: primaryColor, color: primaryColor }}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 8. Luxury ──
+  if (template === "luxury") {
+    return (
+      <div
+        dir={wrapDir}
+        className="min-h-[480px] flex items-center px-14 py-16 relative overflow-hidden"
+        style={{ background: `linear-gradient(135deg,#080808 0%,#180820 60%,#0a0a0a 100%)` }}
+      >
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-[140px] opacity-10" style={{ backgroundColor: primaryColor }} />
+        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] opacity-10" style={{ backgroundColor: secondaryColor }} />
+
+        <div className="relative z-10 max-w-2xl space-y-7 text-white">
+          <div className="flex items-center gap-4">
+            <div className="h-px w-12" style={{ backgroundColor: primaryColor }} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em]" style={{ color: primaryColor }}>
+              {rtl ? "مجموعة فاخرة" : "Luxury Collection"}
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <h1
+              className={cn("text-5xl font-bold tracking-wide leading-tight", fontClass)}
+              style={{ ...headingStyle, color: "#f5f5f5", letterSpacing: "0.04em" }}
+            >
+              {storeName}
+            </h1>
+            <div className="flex items-center gap-3 mt-2">
+              <div className="h-px flex-1 max-w-[60px]" style={{ backgroundColor: `${primaryColor}60` }} />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+              <div className="h-px flex-1 max-w-[60px]" style={{ backgroundColor: `${primaryColor}60` }} />
+            </div>
+          </div>
+
+          <p className="text-lg leading-relaxed font-light" style={{ color: secondaryColor }}>{tagline}</p>
+          <p className="text-sm leading-relaxed text-white/40 max-w-md">{description}</p>
+
+          <div className={cn("flex gap-4 pt-2", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-8 py-3 text-sm font-semibold rounded-none border hover:bg-white/5 transition-colors tracking-widest uppercase inline-block"
+              style={{ borderColor: primaryColor, color: primaryColor }}
+            />
+            <SecondaryCta
+              fallbackLabel={rtl ? "استكشاف" : "Explore"}
+              className="px-8 py-3 text-sm font-semibold text-white/40 tracking-widest uppercase hover:text-white/70 transition-colors inline-block"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 9. Wave ──
+  if (template === "wave") {
+    return (
+      <div dir={wrapDir} className="min-h-[480px] bg-white relative overflow-hidden flex flex-col">
+        <div className={cn("flex-1 flex items-center px-10 py-14 relative z-10", flexAlignClass)}>
+          <div className={cn("max-w-xl space-y-6", alignClass)}>
+            <div
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
+              style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+              {rtl ? "اكتشف مجموعتنا" : "Discover our collection"}
+            </div>
+
+            <h1 className={cn("text-5xl font-bold leading-tight tracking-tight text-gray-900", fontClass)} style={headingStyle}>
+              {storeName}
+            </h1>
+            <p className="text-xl text-gray-400 font-light leading-relaxed">{tagline}</p>
+            <p className="text-sm text-gray-300 leading-relaxed">{description}</p>
+
+            <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
+              <PrimaryCta
+                className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <SecondaryCta
+                fallbackLabel={rtl ? "تعرف أكثر" : "Learn More"}
+                className="px-7 py-2.5 rounded-full text-sm font-semibold border-2 hover:bg-black/5 transition-colors inline-block"
+                style={{ borderColor: primaryColor, color: primaryColor }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <svg viewBox="0 0 1440 100" preserveAspectRatio="none" className="w-full block" style={{ height: "100px", display: "block" }}>
+            <path
+              d="M0,50 C180,100 360,0 540,50 C720,100 900,0 1080,50 C1260,100 1380,30 1440,50 L1440,100 L0,100 Z"
+              fill={primaryColor}
+            />
+          </svg>
+          <div className="h-6" style={{ backgroundColor: primaryColor }} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── 10. Magazine ──
+  if (template === "magazine") {
+    return (
+      <div dir={wrapDir} className={cn("min-h-[480px] bg-gray-50 relative overflow-hidden flex items-center", flexAlignClass)}>
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden select-none pointer-events-none">
+          <span
+            className="font-black whitespace-nowrap leading-none"
+            style={{ fontSize: "10rem", color: `${primaryColor}0E`, letterSpacing: "-0.04em" }}
+          >
+            {storeName.toUpperCase()}
+          </span>
+        </div>
+
+        <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: primaryColor }} />
+
+        <div className={cn("relative z-10 px-16 py-16 space-y-7", rtl && "pr-6 pl-16")}>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-[0.4em] text-gray-400">
+              {rtl ? "متجرنا المميز" : "Featured Store"}
+            </span>
+            <div className="h-px flex-1 max-w-16 bg-gray-200" />
+          </div>
+
+          <h1 className={cn("text-6xl font-black leading-none tracking-tight text-gray-900", fontClass)} style={headingStyle}>
+            {storeName}
+          </h1>
+
+          <div className="flex items-start gap-5">
+            <div className="w-1 self-stretch shrink-0" style={{ backgroundColor: primaryColor }} />
+            <p className="text-2xl font-light text-gray-500 leading-relaxed max-w-sm">{tagline}</p>
+          </div>
+
+          <p className="text-sm text-gray-400 leading-relaxed max-w-sm">{description}</p>
+
+          <div className={cn("flex items-center gap-6 pt-2", rtl && "flex-row-reverse")}>
+            <PrimaryCta
+              className="px-8 py-3 text-sm font-black text-white tracking-wider uppercase hover:opacity-90 transition-opacity inline-block"
+              style={{ backgroundColor: primaryColor }}
+            />
+            <SecondaryCta
+              fallbackLabel={rtl ? "← اكتشف المزيد" : "Discover More →"}
+              className="text-sm text-gray-400 font-medium hover:text-gray-700 transition-colors inline-block"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 11. Showcase (image-only) ──
+  // Full-bleed photo. Ignores any uploaded video — this template is for stores
+  // that want to lead with one strong product/lifestyle image. Falls back to a
+  // brand-color gradient with a hint when no image is set.
+  if (template === "showcase") {
+    return (
+      <div
+        dir={wrapDir}
+        className={cn("min-h-[560px] md:min-h-[640px] relative overflow-hidden flex items-end", flexAlignClass)}
+        style={{
+          background: heroImage
+            ? undefined
+            : `linear-gradient(135deg,${primaryColor}25 0%,${secondaryColor}25 100%)`,
+        }}
+      >
+        {heroImage ? (
+          <div
+            className="absolute inset-0"
+            style={{ background: `url(${heroImage}) center/cover no-repeat` }}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div
+                className="w-24 h-24 rounded-3xl mx-auto flex items-center justify-center"
+                style={{ backgroundColor: `${primaryColor}25` }}
+              >
+                <span className="text-5xl">🖼️</span>
+              </div>
+              <p className="text-xs text-gray-500">{rtl ? "أضف صورة المتجر" : "Upload a store image"}</p>
+            </div>
+          </div>
+        )}
+
+        {heroImage && (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(to top, ${hexToRgba(heroVariant.overlayColor || "#000000", Math.max(overlayAlpha, 0.55))} 0%, ${hexToRgba(heroVariant.overlayColor || "#000000", overlayAlpha * 0.2)} 50%, transparent 100%)`,
+            }}
+          />
+        )}
+
+        <div className={cn("relative z-10 w-full px-8 md:px-12 py-10 md:py-14", alignClass)}>
+          <div className="space-y-3 max-w-xl text-white">
+            <h1 className={cn("text-4xl md:text-5xl font-bold leading-tight tracking-tight drop-shadow", fontClass)} style={headingStyle}>
+              {storeName}
+            </h1>
+            {tagline && <p className="text-lg text-white/90 drop-shadow">{tagline}</p>}
+            <div className={cn("flex gap-3 pt-3", rtl && "flex-row-reverse")}>
+              <PrimaryCta
+                className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-xl hover:opacity-90 hover:scale-105 transition-all inline-block"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <SecondaryCta
+                fallbackLabel={rtl ? "اكتشف" : "Explore"}
+                className="px-7 py-2.5 rounded-full text-sm font-semibold text-white border border-white/40 hover:bg-white/10 transition-colors inline-block"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 12. Reel (video-only) ──
+  // Full-bleed autoplay video loop. Ignores any uploaded image. Falls back to
+  // a dark gradient placeholder when no video is set.
+  if (template === "reel") {
+    return (
+      <div
+        dir={wrapDir}
+        className={cn("min-h-[560px] md:min-h-[640px] relative overflow-hidden flex items-center", flexAlignClass)}
+        style={{
+          background: heroVideoUrl
+            ? "#000"
+            : `linear-gradient(to bottom right,#0f172a,${primaryColor}40,#0f172a)`,
+        }}
+      >
+        {heroVideoUrl ? (
+          <video
+            src={heroVideoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div
+                className="w-24 h-24 rounded-full mx-auto flex items-center justify-center"
+                style={{ backgroundColor: `${primaryColor}30` }}
+              >
+                <span className="text-5xl">🎬</span>
+              </div>
+              <p className="text-xs text-white/70">{rtl ? "أضف فيديو المتجر" : "Upload a store video"}</p>
+            </div>
+          </div>
+        )}
+
+        {heroVideoUrl && (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(to bottom, ${hexToRgba(heroVariant.overlayColor || "#000000", overlayAlpha * 0.4)}, ${hexToRgba(heroVariant.overlayColor || "#000000", Math.max(overlayAlpha, 0.5))})`,
+            }}
+          />
+        )}
+
+        <div className={cn("relative z-10 w-full px-8 md:px-12 py-12", alignClass)}>
+          <div className="space-y-4 max-w-xl text-white">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] bg-white/15 backdrop-blur">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              {rtl ? "بث مباشر" : "On Air"}
+            </span>
+            <h1 className={cn("text-4xl md:text-6xl font-black leading-none tracking-tight drop-shadow-lg", fontClass)} style={headingStyle}>
+              {storeName}
+            </h1>
+            {tagline && <p className="text-lg text-white/85 drop-shadow">{tagline}</p>}
+            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+              <PrimaryCta
+                className="px-8 py-3 rounded-full text-sm font-bold text-white shadow-xl hover:opacity-90 hover:scale-105 transition-all inline-block"
+                style={{ backgroundColor: primaryColor }}
+              />
+              <SecondaryCta
+                fallbackLabel={rtl ? "شاهد" : "Watch"}
+                className="px-8 py-3 rounded-full text-sm font-bold text-white border border-white/40 hover:bg-white/10 transition-colors inline-block"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+
+function PaymentBadge({
+  method,
+  fg,
+  bg,
+  border,
+}: {
+  method: PaymentMethod
+  fg?: string
+  bg?: string
+  border?: string
+}) {
+  return (
+    <div
+      className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider"
+      style={{
+        color: fg ?? "#cbd5e1",
+        backgroundColor: bg ?? "rgba(255,255,255,0.1)",
+        border: `1px solid ${border ?? "rgba(255,255,255,0.15)"}`,
+      }}
+    >
+      {PAYMENT_METHOD_LABEL[method]}
+    </div>
+  )
+}
+
+export function StorefrontFooter({ view, soukyHref = "/" }: { view: StorefrontView; soukyHref?: string }) {
+  const {
+    storeName, footerAbout, footerEmail, footerPhone, footerWhatsapp, footerAddress, businessHours,
+    showSocial, socialFacebook, socialInstagram, socialTiktok, socialYoutube, socialTwitter,
+    primaryColor, rtl, showFooter, footerColumns, newsletter, paymentMethods,
+  } = view
+
+  const hasContact = !!(footerEmail || footerPhone || footerWhatsapp || footerAddress || businessHours)
+  const hasSocials = !!(socialFacebook || socialInstagram || socialTiktok || socialYoutube || socialTwitter || footerWhatsapp)
+  const hasColumns = footerColumns.length > 0
+
+  const showRich = showFooter && (footerAbout || hasContact || hasColumns || newsletter.enabled || paymentMethods.length > 0)
+  const tokens = themeTokens(view.theme)
+  const headingStyle: React.CSSProperties | undefined =
+    view.fonts.headingFont && view.fonts.headingFont !== "system"
+      ? { fontFamily: fontFamily(view.fonts.headingFont) }
+      : undefined
+
+  // Resolved color theme: combines preset (dark/light/branded/minimal) with seller overrides.
+  const theme = resolveFooterTheme(view.footerStyle, primaryColor, {
+    bg: view.bgColors.footer,
+    colors: view.footerColors,
+  })
+
+  const center = view.footerAlign === "center"
+
+  // Headings inherit the heading color (and optional heading font) by default.
+  const h3Style: React.CSSProperties = { color: theme.heading, ...headingStyle }
+  // Social/icon pill bg is a translucent layer derived from the text color so it works
+  // on dark, light, and branded footers without us hardcoding white/black.
+  const iconBg = "color-mix(in srgb, currentColor 14%, transparent)"
+  const iconBgHover = "color-mix(in srgb, currentColor 24%, transparent)"
+  // Inputs on dark/branded footers want light fields; on light/minimal they want darker fields.
+  const isDarkFooter = view.footerStyle === "dark" || view.footerStyle === "branded" || view.footerStyle === "custom"
+  const inputBg = isDarkFooter ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"
+  const inputBorder = theme.border
+
+  const linkUrl = (raw: string, base: string) =>
+    raw.startsWith("http") || raw.startsWith("/") || raw.startsWith("#") ? raw : `${base}${raw}`
+
+  // Reusable social link
+  const SocialLink = ({ href, label, children }: { href: string; label: string; children: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+      style={{ backgroundColor: iconBg }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = iconBgHover)}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = iconBg)}
+    >
+      {children}
+    </a>
+  )
+
+  return (
+    <footer
+      id="contact"
+      style={{ backgroundColor: theme.bg, color: theme.text }}
+      dir={rtl ? "rtl" : "ltr"}
+    >
+      {showRich && (
+        <div className={cn("px-5 sm:px-8 py-10 md:py-12 grid gap-8 sm:gap-10 sm:grid-cols-2 lg:grid-cols-4", center && "text-center")}>
+          {/* Brand + about + socials */}
+          <div className={cn("space-y-4 lg:col-span-1", center && "flex flex-col items-center")}>
+            <div className={cn("flex items-center gap-2.5", rtl && "flex-row-reverse")}>
+              {view.logoUrl ? (
+                <img src={view.logoUrl} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {storeName.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <span className="font-bold" style={{ color: theme.heading }}>{storeName}</span>
+            </div>
+            {footerAbout && (
+              <p className="text-sm leading-relaxed whitespace-pre-line">{footerAbout}</p>
+            )}
+            {showSocial && hasSocials && (
+              <div className={cn("flex flex-wrap gap-2 pt-1", center && "justify-center", rtl && "flex-row-reverse")}>
+                {socialFacebook  && <SocialLink href={linkUrl(socialFacebook,  "https://facebook.com/")}  label="Facebook"><Facebook      className="w-4 h-4" /></SocialLink>}
+                {socialInstagram && <SocialLink href={linkUrl(socialInstagram, "https://instagram.com/")} label="Instagram"><Instagram     className="w-4 h-4" /></SocialLink>}
+                {socialTiktok    && <SocialLink href={linkUrl(socialTiktok,    "https://tiktok.com/@")}   label="TikTok"><TiktokIcon       className="w-4 h-4" /></SocialLink>}
+                {socialYoutube   && <SocialLink href={linkUrl(socialYoutube,   "https://youtube.com/")}   label="YouTube"><Youtube         className="w-4 h-4" /></SocialLink>}
+                {socialTwitter   && <SocialLink href={linkUrl(socialTwitter,   "https://x.com/")}         label="X / Twitter"><Twitter     className="w-4 h-4" /></SocialLink>}
+                {footerWhatsapp  && <SocialLink href={`https://wa.me/${footerWhatsapp.replace(/[^\d]/g, "")}`} label="WhatsApp"><MessageCircle className="w-4 h-4" /></SocialLink>}
+              </div>
+            )}
+          </div>
+
+          {/* Contact */}
+          {hasContact && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest" style={h3Style}>
+                {rtl ? "تواصل معنا" : "Contact"}
+              </h3>
+              <div className="space-y-3 text-sm">
+                {[
+                  { icon: Mail,           val: footerEmail,    href: footerEmail   ? `mailto:${footerEmail}` : null,    accent: false },
+                  { icon: Phone,          val: footerPhone,    href: footerPhone   ? `tel:${footerPhone}`    : null,    accent: false },
+                  { icon: MessageCircle,  val: footerWhatsapp, href: footerWhatsapp? `https://wa.me/${footerWhatsapp.replace(/[^\d]/g, "")}` : null, accent: true },
+                  { icon: MapPin,         val: footerAddress,  href: null,                                              accent: false },
+                  { icon: Clock,          val: businessHours,  href: null,                                              accent: false },
+                ]
+                  .filter((r) => r.val)
+                  .map(({ icon: Icon, val, href, accent }) => (
+                    <div key={val as string} className={cn("flex items-start gap-2.5", center && "justify-center", rtl && "flex-row-reverse")}>
+                      <Icon className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accent ? "#22c55e" : theme.accent, opacity: accent ? 1 : 0.7 }} />
+                      {href ? (
+                        <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="transition-opacity hover:opacity-80 whitespace-pre-line">
+                          {val}
+                        </a>
+                      ) : (
+                        <span className="whitespace-pre-line">{val}</span>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom columns */}
+          {hasColumns && footerColumns.map((col, i) => (
+            <div key={i} className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest" style={h3Style}>{col.title}</h3>
+              <div className="space-y-2.5 text-sm">
+                {col.links.map((l, j) => (
+                  <a
+                    key={j}
+                    href={l.url}
+                    target={l.url.startsWith("http") ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    className="block transition-opacity hover:opacity-80"
+                  >
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Newsletter */}
+          {newsletter.enabled && (
+            <div className={cn("space-y-4 md:col-span-2 lg:col-span-1", center && "flex flex-col items-center")}>
+              <h3 className="text-xs font-bold uppercase tracking-widest" style={h3Style}>
+                {newsletter.heading || (rtl ? "اشترك" : "Subscribe")}
+              </h3>
+              {newsletter.subheading && (
+                <p className="text-sm leading-relaxed">{newsletter.subheading}</p>
+              )}
+              <form
+                className={cn("flex flex-col sm:flex-row gap-2 w-full", center && "max-w-sm")}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const input = (e.currentTarget.elements.namedItem("email") as HTMLInputElement | null)
+                  if (input) input.value = ""
+                }}
+              >
+                <div className="relative flex-1">
+                  <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-60" />
+                  <input
+                    name="email"
+                    type="email"
+                    required
+                    placeholder={rtl ? "بريدك الإلكتروني" : "your@email.com"}
+                    className={cn(
+                      "w-full pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2",
+                      tokens.radiusInput,
+                    )}
+                    style={{
+                      backgroundColor: inputBg,
+                      borderWidth: 1,
+                      borderColor: inputBorder,
+                      color: theme.heading,
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className={cn("px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-opacity", tokens.radiusInput)}
+                  style={{ backgroundColor: theme.accent }}
+                >
+                  {rtl ? "اشترك" : "Join"}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payment methods strip */}
+      {showRich && paymentMethods.length > 0 && (
+        <div
+          className="px-5 sm:px-8 py-4 flex flex-wrap items-center gap-x-3 gap-y-2 justify-center"
+          style={{ borderTop: `1px solid ${theme.border}` }}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.heading, opacity: 0.7 }}>
+            {rtl ? "طرق الدفع" : "We Accept"}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {paymentMethods.map((m) => (
+              <PaymentBadge key={m} method={m} fg={theme.heading} bg={iconBg} border={theme.border} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom bar (always renders) */}
+      <div
+        className={cn(
+          "px-5 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-center sm:text-left",
+          center && "sm:justify-center sm:gap-6",
+        )}
+        style={{ borderTop: `1px solid ${theme.border}`, opacity: 0.85 }}
+      >
+        <span className="text-balance leading-snug">
+          {view.footerCopyright
+            ? view.footerCopyright.replace(/\{year\}/g, String(new Date().getFullYear())).replace(/\{store\}/g, storeName)
+            : <>© {new Date().getFullYear()} {storeName}. {rtl ? "جميع الحقوق محفوظة." : "All rights reserved."}</>
+          }
+        </span>
+        <a
+          href={soukyHref}
+          className="font-medium hover:opacity-80 transition-opacity shrink-0"
+          style={{ color: theme.accent }}
+        >
+          {rtl ? "مدعوم من Soukly" : "Powered by Soukly"}
+        </a>
+      </div>
+    </footer>
+  )
+}
+
+// ─── Google Fonts loader ─────────────────────────────────────────────────────
+// React 19 hoists <link> elements rendered in JSX into <head>. This component
+// just emits the right link tag(s) for the seller's chosen fonts.
+
+export function GoogleFontsLoader({ view }: { view: StorefrontView }) {
+  const ids = Array.from(new Set([view.fonts.headingFont, view.fonts.bodyFont]))
+  const families = ids
+    .map((id) => FONT_BY_ID[id]?.google)
+    .filter((g): g is string => !!g)
+  if (families.length === 0) return null
+  const href = `https://fonts.googleapis.com/css2?${families.map((f) => `family=${f}`).join("&")}&display=swap`
+  return <link rel="stylesheet" href={href} />
+}
+
+// ─── Storefront nav (replaces Soukly navbar on store pages) ──────────────────
+
+export function StorefrontNav({
+  view,
+  onCartClick,
+  cartCount = 0,
+}: {
+  view: StorefrontView
+  onCartClick?: () => void
+  cartCount?: number
+}) {
+  const { logoUrl, storeName, primaryColor, secondaryColor, nav, rtl, fonts } = view
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const hasLinks = nav.links.length > 0
+
+  const CartButton = () => {
+    if (!nav.showCart || !onCartClick) return null
+    return (
+      <button
+        onClick={onCartClick}
+        className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+        aria-label="Cart"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <path d="M16 10a4 4 0 0 1-8 0" />
+        </svg>
+        {cartCount > 0 && (
+          <span
+            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {cartCount > 99 ? "99+" : cartCount}
+          </span>
+        )}
+      </button>
+    )
+  }
+
+  return (
+    <nav
+      className="border-b bg-background sticky top-0 z-40 backdrop-blur-md"
+      dir={rtl ? "rtl" : "ltr"}
+      style={{ fontFamily: fontFamily(fonts.bodyFont) }}
+    >
+      <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        {/* Left: back-to-marketplace pill + brand */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Link
+            href="/"
+            aria-label="Back to Soukly marketplace"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-muted hover:bg-muted/70 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <ArrowLeft className={cn("w-3 h-3", rtl && "rotate-180")} />
+            <span>Soukly</span>
+          </Link>
+
+          <a href="#top" className="flex items-center gap-2 min-w-0">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-sm shrink-0" />
+            ) : (
+              <div
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0"
+                style={{ background: `linear-gradient(135deg,${primaryColor},${secondaryColor})` }}
+              >
+                {storeName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <span
+              className="font-bold text-sm sm:text-base tracking-tight truncate"
+              style={{ color: primaryColor, fontFamily: fontFamily(fonts.headingFont) }}
+            >
+              {storeName}
+            </span>
+          </a>
+        </div>
+
+        {/* Center: desktop links */}
+        {hasLinks && (
+          <div className="hidden md:flex items-center gap-6 flex-1 justify-center">
+            {nav.links.map((l, i) => (
+              <a
+                key={i}
+                href={l.url}
+                target={l.url.startsWith("http") ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors relative group"
+              >
+                {l.label}
+                <span
+                  className="absolute -bottom-1 left-0 w-0 h-0.5 transition-all group-hover:w-full"
+                  style={{ backgroundColor: primaryColor }}
+                />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Right: cart + mobile hamburger */}
+        <div className="flex items-center gap-1 shrink-0">
+          <CartButton />
+          {hasLinks && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="md:hidden w-10 h-10 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile dropdown — links */}
+      {hasLinks && mobileMenuOpen && (
+        <div className="md:hidden border-t bg-background">
+          <div className="container mx-auto px-3 sm:px-4 py-2">
+            {nav.links.map((l, i) => (
+              <a
+                key={i}
+                href={l.url}
+                target={l.url.startsWith("http") ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-2 py-3 text-sm font-medium border-b last:border-b-0 hover:bg-muted/40 transition-colors"
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </nav>
+  )
+}
+
+// ─── Trust badges section ────────────────────────────────────────────────────
+
+const TRUST_BADGE_ICON: Record<TrustBadgeKey, React.ReactNode> = {
+  "free-shipping":   <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>,
+  "returns":         <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>,
+  "secure":          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+  "support":         <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>,
+  "quality":         <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+  "authentic":       <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></svg>,
+  "made-in-lebanon": <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>,
+  "fast-delivery":   <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>,
+}
+
+export function StorefrontTrustBadges({ view }: { view: StorefrontView }) {
+  const t = view.trustBadges
+  if (!t.enabled || t.items.length === 0) return null
+
+  const tokens = themeTokens(view.theme)
+  const headingFamily = fontFamily(view.fonts.headingFont)
+  const bgStyle = view.bgColors.products ? { backgroundColor: view.bgColors.products } : undefined
+
+  return (
+    <section className={cn("border-t border-b", !bgStyle && "bg-muted/20")} style={bgStyle} dir={view.rtl ? "rtl" : "ltr"}>
+      <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+        <div className={cn("grid gap-4", t.items.length === 2 ? "md:grid-cols-2" : t.items.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2 lg:grid-cols-4")}>
+          {t.items.map((badge, i) => (
+            <div
+              key={i}
+              className={cn("flex items-start gap-3 p-4 bg-background border", tokens.radius)}
+            >
+              <div
+                className={cn("w-11 h-11 flex items-center justify-center shrink-0", tokens.radius)}
+                style={{ backgroundColor: `${view.primaryColor}15`, color: view.primaryColor }}
+              >
+                {TRUST_BADGE_ICON[badge.key]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm leading-tight" style={{ fontFamily: headingFamily }}>
+                  {badge.label}
+                </p>
+                {badge.sublabel && (
+                  <p className="text-xs text-muted-foreground mt-1 leading-snug">{badge.sublabel}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}

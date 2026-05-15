@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { Suspense, useState, useEffect, useMemo } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import {
@@ -25,7 +25,7 @@ import CheckoutModal from "@/components/checkout-modal"
 const PAGE_SIZE = 24
 const ALL_SLUG = ""
 
-export default function ProductsPage() {
+function ProductsPageInner() {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -437,5 +437,19 @@ export default function ProductsPage() {
       />
       <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
     </main>
+  )
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ProductsPageInner />
+    </Suspense>
   )
 }

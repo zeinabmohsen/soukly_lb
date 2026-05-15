@@ -1,11 +1,13 @@
 "use client"
 
+import { Suspense } from "react"
+import { Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Navbar from "@/components/navbar"
 import { AuthLayout } from "@/components/shared/auth-layout"
 import { InlineAuth } from "@/components/inline-auth"
 
-export default function SignupPage() {
+function SignupPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -39,5 +41,19 @@ export default function SignupPage() {
       />
     </AuthLayout>
     </>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <SignupPageInner />
+    </Suspense>
   )
 }

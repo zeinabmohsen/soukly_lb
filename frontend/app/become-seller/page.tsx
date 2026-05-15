@@ -1,7 +1,3 @@
-"use client"
-
-export const dynamic = "force-dynamic"
-
 import { Suspense } from "react"
 import { Loader2 } from "lucide-react"
 import Navbar from "@/components/navbar"

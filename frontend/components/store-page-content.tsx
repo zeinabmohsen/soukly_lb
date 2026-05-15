@@ -313,6 +313,7 @@ export default function StorePageContent({ store, products, productsLoading }: S
                   variant={view.theme.productCardStyle}
                   borderRadius={view.theme.borderRadius}
                   accentColor={view.primaryColor}
+                  showRating={view.theme.showProductRating}
                   product={{
                     id:        product.id,
                     name:      product.name,

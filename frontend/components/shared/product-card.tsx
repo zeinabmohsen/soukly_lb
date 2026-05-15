@@ -33,13 +33,14 @@ interface ProductCardProps {
     storeName?: string
   }
   showAddToCart?: boolean
+  showRating?: boolean
   className?: string
   variant?: ProductCardVariant
   borderRadius?: "sharp" | "rounded" | "pill"
   accentColor?: string
 }
 
-export function ProductCard({ product, showAddToCart = true, className, variant = "standard", borderRadius, accentColor }: ProductCardProps) {
+export function ProductCard({ product, showAddToCart = true, showRating = true, className, variant = "standard", borderRadius, accentColor }: ProductCardProps) {
   const { addItem } = useCart()
   const { isAuthenticated } = useAuth()
   const router = useRouter()
@@ -88,49 +89,68 @@ export function ProductCard({ product, showAddToCart = true, className, variant 
   const radiusClass =
     borderRadius === "sharp" ? "rounded-none" :
     borderRadius === "pill"  ? "rounded-3xl"  :
+    "rounded-2xl"
+
+  const innerRadiusClass =
+    borderRadius === "sharp" ? "rounded-none" :
+    borderRadius === "pill"  ? "rounded-2xl"  :
     "rounded-xl"
+
+  const formattedPrice = Number.isInteger(product.price)
+    ? `$${product.price}`
+    : `$${product.price.toFixed(2)}`
 
   // Compact: dense, smaller image, tight padding
   if (variant === "compact") {
     return (
-      <Card className={cn("group overflow-hidden hover:shadow-md transition-all duration-300 border", radiusClass, className)}>
+      <Card className={cn(
+        "group relative overflow-hidden border border-border/60 bg-card",
+        "shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-border",
+        "transition-all duration-300 ease-out",
+        radiusClass,
+        className,
+      )}>
         <Link href={`/product/${product.id}`} className="block">
-          <div className="relative aspect-square overflow-hidden bg-muted">
+          <div className={cn("relative aspect-square overflow-hidden bg-muted/50 m-1.5", innerRadiusClass)}>
             <img
               src={imageError ? "/placeholder.svg" : product.image || "/placeholder.svg"}
               alt={product.name}
               onError={() => setImageError(true)}
-              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover transform group-hover:scale-[1.06] transition-transform duration-500 ease-out"
             />
             {product.inStock === false && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                <Badge variant="secondary" className="text-xs">Out of Stock</Badge>
+              <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-semibold">Out of Stock</Badge>
               </div>
             )}
             <button
               onClick={handleToggleWishlist}
               disabled={isMutating}
-              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow transition-all"
+              aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/85 backdrop-blur-md hover:bg-white flex items-center justify-center shadow-sm ring-1 ring-black/5 transition-all hover:scale-105 active:scale-95"
             >
               {isMutating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Heart className={cn("w-4 h-4", inWishlist && "fill-red-500 text-red-500")} />
+                <Heart className={cn("w-3.5 h-3.5 transition-colors", inWishlist ? "fill-red-500 text-red-500" : "text-neutral-700")} />
               )}
             </button>
           </div>
         </Link>
-        <div className="p-2.5 space-y-1">
+        <div className="px-3 pt-1 pb-3 space-y-1.5">
           <Link href={`/product/${product.id}`}>
-            <h3 className="font-medium text-sm line-clamp-1 hover:text-primary transition-colors">
+            <h3 className="font-medium text-sm leading-snug tracking-tight line-clamp-1 hover:text-primary transition-colors">
               {product.name}
             </h3>
           </Link>
-          <div className="flex items-center justify-between">
-            <span className="text-base font-bold" style={accentColor ? { color: accentColor } : undefined}>
-              ${product.price}
+          <div className="flex items-center justify-between gap-2">
+            <span
+              className="text-base font-bold tabular-nums tracking-tight"
+              style={accentColor ? { color: accentColor } : undefined}
+            >
+              {formattedPrice}
             </span>
-            {product.rating && <StarRating rating={product.rating} size="sm" />}
+            {showRating && product.rating && <StarRating rating={product.rating} size="sm" />}
           </div>
         </div>
       </Card>
@@ -140,39 +160,57 @@ export function ProductCard({ product, showAddToCart = true, className, variant 
   // Cinematic: full-bleed image, generous spacing, hover overlay
   if (variant === "cinematic") {
     return (
-      <Card className={cn("group overflow-hidden hover:shadow-2xl transition-all duration-500 border-0 bg-transparent", radiusClass, className)}>
+      <Card className={cn(
+        "group overflow-hidden border-0 bg-transparent shadow-none",
+        "transition-all duration-500 ease-out",
+        radiusClass,
+        className,
+      )}>
         <Link href={`/product/${product.id}`} className="block">
-          <div className={cn("relative aspect-[4/5] overflow-hidden bg-muted", radiusClass)}>
+          <div className={cn(
+            "relative aspect-[4/5] overflow-hidden bg-muted ring-1 ring-black/5",
+            "shadow-md group-hover:shadow-2xl group-hover:-translate-y-1 transition-all duration-500 ease-out",
+            radiusClass,
+          )}>
             <img
               src={imageError ? "/placeholder.svg" : product.image || "/placeholder.svg"}
               alt={product.name}
               onError={() => setImageError(true)}
-              className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+              className="w-full h-full object-cover transform group-hover:scale-[1.08] transition-transform duration-700 ease-out"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             {product.inStock === false && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                <Badge variant="secondary">Out of Stock</Badge>
+              <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
+                <Badge variant="secondary" className="uppercase tracking-wider text-xs font-semibold">Out of Stock</Badge>
               </div>
             )}
             <button
               onClick={handleToggleWishlist}
               disabled={isMutating}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg transition-all"
+              aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-md hover:bg-white flex items-center justify-center shadow-lg ring-1 ring-black/5 transition-all hover:scale-105 active:scale-95"
             >
               {isMutating ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Heart className={cn("w-5 h-5", inWishlist && "fill-red-500 text-red-500")} />
+                <Heart className={cn("w-4 h-4 transition-colors", inWishlist ? "fill-red-500 text-red-500" : "text-neutral-800")} />
               )}
             </button>
             <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-              <h3 className="font-bold text-lg leading-tight mb-1.5 line-clamp-2 drop-shadow">
+              {showRating && product.rating && (
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 mb-2 rounded-full bg-white/15 backdrop-blur-md ring-1 ring-white/20">
+                  <StarRating rating={product.rating} size="sm" />
+                  <span className="text-xs font-semibold tabular-nums">{product.rating.toFixed(1)}</span>
+                </div>
+              )}
+              <h3 className="font-bold text-lg leading-tight tracking-tight mb-1.5 line-clamp-2 [text-shadow:_0_1px_8px_rgb(0_0_0_/_40%)]">
                 {product.name}
               </h3>
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-extrabold drop-shadow">${product.price}</span>
-                {product.rating && <StarRating rating={product.rating} size="sm" />}
+                <span className="text-2xl font-extrabold tabular-nums tracking-tight [text-shadow:_0_1px_8px_rgb(0_0_0_/_40%)]">
+                  {formattedPrice}
+                </span>
               </div>
             </div>
           </div>
@@ -180,7 +218,7 @@ export function ProductCard({ product, showAddToCart = true, className, variant 
         {showAddToCart && (
           <div className="pt-3">
             <Button
-              className="w-full gap-2"
+              className="w-full gap-2 font-semibold"
               disabled={product.inStock === false}
               onClick={handleAddToCart}
               size="sm"
@@ -197,49 +235,65 @@ export function ProductCard({ product, showAddToCart = true, className, variant 
 
   // Standard (default)
   return (
-    <Card className={cn("group overflow-hidden hover:shadow-xl transition-all duration-300", radiusClass, className)}>
+    <Card className={cn(
+      "group relative overflow-hidden border border-border/60 bg-card",
+      "shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-border",
+      "transition-all duration-300 ease-out",
+      radiusClass,
+      className,
+    )}>
       <Link href={`/product/${product.id}`} className="block">
-        <div className="relative aspect-square overflow-hidden bg-muted">
+        <div className={cn("relative aspect-square overflow-hidden bg-muted/50 m-2", innerRadiusClass)}>
           <img
             src={imageError ? "/placeholder.svg" : product.image || "/placeholder.svg"}
             alt={product.name}
             onError={() => setImageError(true)}
-            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover transform group-hover:scale-[1.08] transition-transform duration-500 ease-out"
           />
           {product.inStock === false && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <Badge variant="secondary">Out of Stock</Badge>
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
+              <Badge variant="secondary" className="uppercase tracking-wider text-xs font-semibold">Out of Stock</Badge>
             </div>
           )}
           <button
             onClick={handleToggleWishlist}
             disabled={isMutating}
-            className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
+            aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+            className={cn(
+              "absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur-md hover:bg-white",
+              "flex items-center justify-center shadow-md ring-1 ring-black/5",
+              "transition-all duration-200 hover:scale-105 active:scale-95",
+              inWishlist ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+              "disabled:opacity-50",
+            )}
           >
             {isMutating ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Heart className={cn("w-5 h-5", inWishlist && "fill-red-500 text-red-500")} />
+              <Heart className={cn("w-4 h-4 transition-colors", inWishlist ? "fill-red-500 text-red-500" : "text-neutral-700")} />
             )}
           </button>
         </div>
       </Link>
 
-      <div className="p-4 space-y-3">
+      <div className="px-4 pt-1 pb-4 space-y-2.5">
         <Link href={`/product/${product.id}`}>
-          <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors cursor-pointer">
+          <h3 className="font-semibold text-base leading-snug tracking-tight line-clamp-2 group-hover:text-primary transition-colors cursor-pointer min-h-[2.6rem]">
             {product.name}
           </h3>
         </Link>
-        <div className="flex items-center justify-between">
-          <span className="text-2xl font-bold" style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}>
-            ${product.price}
+        <div className="flex items-end justify-between gap-2">
+          <span
+            className="text-2xl font-bold tabular-nums tracking-tight leading-none"
+            style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}
+          >
+            {formattedPrice}
           </span>
-          {product.rating && <StarRating rating={product.rating} size="sm" showValue />}
+          {showRating && product.rating && <StarRating rating={product.rating} size="sm" showValue />}
         </div>
         {showAddToCart && (
           <Button
-            className="w-full gap-2"
+            className="w-full gap-2 font-semibold mt-1"
             disabled={product.inStock === false}
             onClick={handleAddToCart}
             size="sm"

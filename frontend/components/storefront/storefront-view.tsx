@@ -91,17 +91,19 @@ export type SectionSpacing = "compact" | "comfortable" | "airy"
 export type ProductCardStyle = "compact" | "standard" | "cinematic"
 
 export type Theme = {
-  borderRadius:     BorderRadius
-  containerWidth:   ContainerWidth
-  sectionSpacing:   SectionSpacing
-  productCardStyle: ProductCardStyle
+  borderRadius:       BorderRadius
+  containerWidth:     ContainerWidth
+  sectionSpacing:     SectionSpacing
+  productCardStyle:   ProductCardStyle
+  showProductRating:  boolean
 }
 
 export const DEFAULT_THEME: Theme = {
-  borderRadius:     "rounded",
-  containerWidth:   "standard",
-  sectionSpacing:   "comfortable",
-  productCardStyle: "standard",
+  borderRadius:      "rounded",
+  containerWidth:    "standard",
+  sectionSpacing:    "comfortable",
+  productCardStyle:  "standard",
+  showProductRating: true,
 }
 
 // Token classes derived from a theme — kept here so callers stay in sync.
@@ -510,10 +512,11 @@ function readTheme(hero: Record<string, unknown> | null | undefined): Theme {
   const pick = <V extends string>(val: unknown, allowed: readonly V[], fallback: V): V =>
     typeof val === "string" && (allowed as readonly string[]).includes(val) ? (val as V) : fallback
   return {
-    borderRadius:     pick(t.borderRadius,     radii,  DEFAULT_THEME.borderRadius),
-    containerWidth:   pick(t.containerWidth,   widths, DEFAULT_THEME.containerWidth),
-    sectionSpacing:   pick(t.sectionSpacing,   space,  DEFAULT_THEME.sectionSpacing),
-    productCardStyle: pick(t.productCardStyle, cards,  DEFAULT_THEME.productCardStyle),
+    borderRadius:      pick(t.borderRadius,     radii,  DEFAULT_THEME.borderRadius),
+    containerWidth:    pick(t.containerWidth,   widths, DEFAULT_THEME.containerWidth),
+    sectionSpacing:    pick(t.sectionSpacing,   space,  DEFAULT_THEME.sectionSpacing),
+    productCardStyle:  pick(t.productCardStyle, cards,  DEFAULT_THEME.productCardStyle),
+    showProductRating: typeof t.showProductRating === "boolean" ? t.showProductRating : DEFAULT_THEME.showProductRating,
   }
 }
 

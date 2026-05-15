@@ -50,6 +50,8 @@ import {
   Store,
   Palette,
   Sparkles,
+  Star,
+  Search,
 } from "lucide-react"
 import { useGetMyStoreQuery, useUpdateMyStoreMutation, useUploadStoreImageMutation } from "@/store/api/storeApi"
 import { ProductCard } from "@/components/shared/product-card"
@@ -693,44 +695,26 @@ export default function StoreBuilder() {
               </Field>
 
               <Field label="Product Card Style">
-                <VisualOptionGroup<Theme["productCardStyle"]>
+                <ProductCardStylePicker
                   value={storeData.theme.productCardStyle}
                   onChange={(v) => update("theme", { ...storeData.theme, productCardStyle: v })}
-                  options={[
-                    {
-                      value: "compact",
-                      label: "Compact",
-                      preview: (
-                        <svg viewBox="0 0 24 14" className="w-6 h-3.5">
-                          <rect x="2"  y="2" width="6" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                          <rect x="9"  y="2" width="6" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                          <rect x="16" y="2" width="6" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "standard",
-                      label: "Standard",
-                      preview: (
-                        <svg viewBox="0 0 24 14" className="w-6 h-3.5">
-                          <rect x="3"  y="2" width="8" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                          <rect x="13" y="2" width="8" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "cinematic",
-                      label: "Cinematic",
-                      preview: (
-                        <svg viewBox="0 0 24 14" className="w-6 h-3.5">
-                          <rect x="2"  y="2" width="20" height="10" rx="1" fill="currentColor" opacity="0.85" />
-                          <rect x="3"  y="9" width="9"  height="2"  rx="0.5" fill="currentColor" opacity="0.4" />
-                        </svg>
-                      ),
-                    },
-                  ]}
+                  accentColor={storeData.primaryColor}
                 />
               </Field>
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-tight">Show ratings on cards</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Hide if you don't have reviews yet</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={storeData.theme.showProductRating}
+                  onCheckedChange={(v) => update("theme", { ...storeData.theme, showProductRating: v })}
+                />
+              </div>
 
               <div className="pt-3 border-t space-y-2">
                 <div className="flex items-center gap-2">
@@ -1549,6 +1533,123 @@ function VisualOptionGroup<T extends string>({
   )
 }
 
+/**
+ * Visual picker for product card style. Each option is a realistic mini-mockup
+ * (faux image + name + price) rather than an abstract SVG, plus a one-line hint
+ * explaining when to use it — so sellers can pick on sight, not by guessing.
+ */
+function ProductCardStylePicker({
+  value,
+  onChange,
+  accentColor,
+}: {
+  value: Theme["productCardStyle"]
+  onChange: (v: Theme["productCardStyle"]) => void
+  accentColor?: string
+}) {
+  const options: Array<{
+    value: Theme["productCardStyle"]
+    label: string
+    hint: string
+    mock: React.ReactNode
+  }> = [
+    {
+      value: "compact",
+      label: "Compact",
+      hint: "Dense grid, more per row",
+      mock: (
+        <div className="flex gap-1 w-full">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex-1 space-y-1">
+              <div className="aspect-square rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+              <div className="h-0.5 rounded-sm bg-muted-foreground/40" />
+              <div className="h-1 rounded-sm w-1/2" style={{ background: accentColor ?? "currentColor" }} />
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      value: "standard",
+      label: "Standard",
+      hint: "Balanced — name, price, button",
+      mock: (
+        <div className="flex gap-1.5 w-full">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex-1 space-y-1 rounded-sm border border-muted-foreground/20 p-1">
+              <div className="aspect-square rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+              <div className="h-1 rounded-sm bg-muted-foreground/40" />
+              <div className="h-1 rounded-sm w-3/4" style={{ background: accentColor ?? "currentColor" }} />
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      value: "cinematic",
+      label: "Cinematic",
+      hint: "Big image, overlay text",
+      mock: (
+        <div className="w-full">
+          <div className="relative aspect-[4/3] rounded-sm overflow-hidden bg-gradient-to-br from-muted-foreground/40 to-muted-foreground/20">
+            <div className="absolute inset-x-1 bottom-1 space-y-0.5">
+              <div className="h-1 rounded-sm bg-white/80" />
+              <div className="h-1 rounded-sm w-1/3" style={{ background: accentColor ?? "white" }} />
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "group relative flex flex-col items-stretch gap-2 rounded-lg border bg-muted/20 p-2 text-left transition-all",
+              "hover:bg-muted/40 hover:border-foreground/30",
+              active
+                ? "border-foreground/80 bg-background shadow-sm ring-2 ring-foreground/10"
+                : "border-border text-muted-foreground",
+            )}
+            aria-pressed={active}
+          >
+            <div className={cn(
+              "flex items-center justify-center rounded-md bg-background/80 p-2 min-h-[60px]",
+              active ? "text-foreground" : "text-muted-foreground/80",
+            )}>
+              {opt.mock}
+            </div>
+            <div className="space-y-0.5 px-0.5">
+              <div className={cn("text-xs font-semibold", active ? "text-foreground" : "text-foreground/80")}>
+                {opt.label}
+              </div>
+              <div className="text-[10px] leading-tight text-muted-foreground line-clamp-2">
+                {opt.hint}
+              </div>
+            </div>
+            {active && (
+              <div
+                className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow"
+                style={{ background: accentColor ?? "var(--primary)" }}
+                aria-hidden
+              >
+                ✓
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Hero Video field ────────────────────────────────────────────────────────
 // Optional looping background video for templates that support it (Cinematic,
 // Reel, and as a fallback in Elegant). The store's primary image lives on
@@ -1841,10 +1942,17 @@ function SectionCard({
 
   return (
     <div className={cn("rounded-xl border bg-background overflow-hidden transition-colors", isMuted && "opacity-70")}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2.5 p-4 text-left hover:bg-muted/40 transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            setOpen((o) => !o)
+          }
+        }}
+        className="w-full flex items-center gap-2.5 p-4 text-left hover:bg-muted/40 transition-colors cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         aria-expanded={open}
       >
         <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -1853,13 +1961,12 @@ function SectionCard({
           {hint && <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{hint}</p>}
         </div>
         {hasToggle && (
-          <span
+          <div
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
-            role="presentation"
           >
             <Switch checked={enabled} onCheckedChange={onToggle} />
-          </span>
+          </div>
         )}
         <ChevronDown
           className={cn(
@@ -1867,7 +1974,7 @@ function SectionCard({
             open && "rotate-180",
           )}
         />
-      </button>
+      </div>
       {open && (
         <div className="border-t bg-muted/20 p-4 space-y-4">
           {children}
@@ -2400,19 +2507,47 @@ function StorePreview({ data }: { data: StoreData }) {
 // (see store-page-content.tsx) but skips the search and category filters.
 
 const PREVIEW_PRODUCTS = [
-  { id: "preview-1", name: "Handwoven Ceramic Vase",   price: 45, image: "/placeholder.svg", rating: 4.8 },
-  { id: "preview-2", name: "Olive Wood Serving Board", price: 32, image: "/placeholder.svg", rating: 4.9 },
-  { id: "preview-3", name: "Cedar Soap Trio",          price: 18, image: "/placeholder.svg", rating: 4.7 },
-  { id: "preview-4", name: "Linen Table Runner",       price: 28, image: "/placeholder.svg", rating: 4.6 },
-  { id: "preview-5", name: "Brass Coffee Pot",         price: 55, image: "/placeholder.svg", rating: 5.0 },
-  { id: "preview-6", name: "Hand-Painted Tile Set",    price: 38, image: "/placeholder.svg", rating: 4.8 },
+  { id: "preview-1", name: "Handwoven Ceramic Vase",   price: 45, hue: 18,  rating: 4.8 },
+  { id: "preview-2", name: "Olive Wood Serving Board", price: 32, hue: 75,  rating: 4.9 },
+  { id: "preview-3", name: "Cedar Soap Trio",          price: 18, hue: 200, rating: 4.7 },
+  { id: "preview-4", name: "Linen Table Runner",       price: 28, hue: 340, rating: 4.6 },
+  { id: "preview-5", name: "Brass Coffee Pot",         price: 55, hue: 35,  rating: 5.0 },
+  { id: "preview-6", name: "Hand-Painted Tile Set",    price: 38, hue: 260, rating: 4.8 },
 ] as const
+
+const PREVIEW_CATEGORIES = ["All", "Pottery", "Textiles", "Wood", "Bath"] as const
+
+// Generate a colorful gradient SVG placeholder per product so the builder
+// preview shows variety — a grey /placeholder.svg makes every card look
+// identical and hides what the chosen card style actually does with imagery.
+function previewProductImage(hue: number, accent: string): string {
+  const safeAccent = accent || "#888888"
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="hsl(${hue}, 55%, 78%)" />
+        <stop offset="100%" stop-color="hsl(${(hue + 35) % 360}, 50%, 58%)" />
+      </linearGradient>
+      <radialGradient id="r" cx="35%" cy="30%" r="60%">
+        <stop offset="0%" stop-color="white" stop-opacity="0.45" />
+        <stop offset="100%" stop-color="white" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="400" height="400" fill="url(#g)" />
+    <rect width="400" height="400" fill="url(#r)" />
+    <circle cx="200" cy="220" r="90" fill="${safeAccent}" opacity="0.25" />
+    <circle cx="200" cy="220" r="55" fill="${safeAccent}" opacity="0.35" />
+  </svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
 
 function PreviewProducts({ view }: { view: StorefrontView }) {
   const tokens = themeTokens(view.theme)
   const productsBgStyle = view.bgColors.products ? { backgroundColor: view.bgColors.products } : undefined
   const headingStyle: React.CSSProperties | undefined =
     view.fonts.headingFont !== "system" ? { fontFamily: fontFamily(view.fonts.headingFont) } : undefined
+  const bodyStyle: React.CSSProperties | undefined =
+    view.fonts.bodyFont !== "system" ? { fontFamily: fontFamily(view.fonts.bodyFont) } : undefined
 
   const gridCols =
     view.theme.productCardStyle === "compact"
@@ -2428,12 +2563,46 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
       style={productsBgStyle}
     >
       <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
-        <div className="mb-6">
-          <h2 className="text-3xl font-bold mb-2" style={headingStyle}>Products</h2>
-          <p className="text-muted-foreground text-sm">
-            Example tiles — replace these with your real products from the Products page.
-          </p>
+        {/* Header — matches live storefront layout (title + search) */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold mb-2 tracking-tight" style={headingStyle}>Products</h2>
+            <p className="text-muted-foreground text-sm" style={bodyStyle}>
+              {PREVIEW_PRODUCTS.length} products · sample preview — replace with your real inventory
+            </p>
+          </div>
+          <div className="relative w-full sm:w-72 shrink-0 opacity-70 pointer-events-none select-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div
+              className="pl-9 pr-3 h-10 rounded-full bg-background border flex items-center text-sm text-muted-foreground"
+              aria-hidden
+            >
+              Search {view.storeName || "store"}…
+            </div>
+          </div>
         </div>
+
+        {/* Category filter chips — decorative preview */}
+        <div className="mb-8 -mx-4 px-4 overflow-x-auto">
+          <div className="inline-flex gap-2 whitespace-nowrap">
+            {PREVIEW_CATEGORIES.map((label, i) => {
+              const active = i === 0
+              return (
+                <span
+                  key={label}
+                  className={cn(
+                    "rounded-full border px-4 py-1.5 text-sm transition-colors select-none",
+                    active ? "border-transparent text-white" : "bg-background text-foreground",
+                  )}
+                  style={active ? { backgroundColor: view.primaryColor } : undefined}
+                >
+                  {label}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+
         <div className={cn("grid gap-4 md:gap-6", gridCols)}>
           {PREVIEW_PRODUCTS.map((p) => (
             <ProductCard
@@ -2441,8 +2610,16 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
               variant={view.theme.productCardStyle}
               borderRadius={view.theme.borderRadius}
               accentColor={view.primaryColor}
+              showRating={view.theme.showProductRating}
               showAddToCart={false}
-              product={{ id: p.id, name: p.name, price: p.price, image: p.image, rating: p.rating, inStock: true }}
+              product={{
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                image: previewProductImage(p.hue, view.primaryColor),
+                rating: p.rating,
+                inStock: true,
+              }}
             />
           ))}
         </div>

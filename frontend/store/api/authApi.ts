@@ -4,7 +4,6 @@ import type { User } from "../slices/authSlice"
 interface AuthResponse {
   user: User
   access_token: string
-  refresh_token: string
 }
 
 export const authApi = baseApi.injectEndpoints({

@@ -6,8 +6,8 @@ const { User, Session } = require("../models");
 const { createUser: createUserService } = require("../services/userService");
 const { jwtSecret, nodeEnv } = require("../../../config");
 
-const ACCESS_EXPIRES_IN = "1h";
-const REFRESH_DAYS = 30;
+const ACCESS_EXPIRES_IN = "15m";
+const REFRESH_DAYS = 365;
 const REFRESH_COOKIE_NAME = "soukly_refresh_token";
 
 function setRefreshCookie(res, refreshToken, expiresAt) {
@@ -116,8 +116,6 @@ const register = asyncHandler(async (req, res) => {
   res.status(201).json({
     user: formatUser(user),
     access_token: accessToken,
-    refresh_token: session.refreshToken,
-    refresh_expires_at: session.expiresAt,
     access_expires_in: ACCESS_EXPIRES_IN,
   });
 });
@@ -146,8 +144,6 @@ const login = asyncHandler(async (req, res) => {
   res.status(200).json({
     user: formatUser(user),
     access_token: accessToken,
-    refresh_token: session.refreshToken,
-    refresh_expires_at: session.expiresAt,
     access_expires_in: ACCESS_EXPIRES_IN,
   });
 });
@@ -170,7 +166,8 @@ const refreshToken = asyncHandler(async (req, res) => {
 
   const matches = await bcrypt.compare(parsed.rawToken, session.refresh_token_hash);
   if (!matches) {
-    await session.destroy();
+    await Session.destroy({ where: { user_id: session.user_id } });
+    clearRefreshCookie(res);
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 
@@ -186,9 +183,8 @@ const refreshToken = asyncHandler(async (req, res) => {
   setRefreshCookie(res, rotated.refreshToken, rotated.expiresAt);
 
   res.status(200).json({
+    user: formatUser(user),
     access_token: accessToken,
-    refresh_token: rotated.refreshToken,
-    refresh_expires_at: rotated.expiresAt,
     access_expires_in: ACCESS_EXPIRES_IN,
   });
 });

@@ -31,14 +31,13 @@ const NEXT_STATUSES: Record<string, string[]> = {
 }
 
 export default function SellerOrdersPage() {
-  const [filterStatus, setFilterStatus] = useState<string>("")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
   const [offset, setOffset] = useState(0)
 
-  // Reset to first page when filter changes
   useEffect(() => { setOffset(0) }, [filterStatus])
 
   const { data, isLoading, isFetching } = useGetStoreOrdersQuery({
-    status: filterStatus || undefined,
+    status: filterStatus === "all" ? undefined : filterStatus,
     limit: PAGE_SIZE,
     offset,
   })
@@ -70,7 +69,7 @@ export default function SellerOrdersPage() {
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
+            <SelectItem value="all">All</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="confirmed">Confirmed</SelectItem>
             <SelectItem value="processing">Processing</SelectItem>

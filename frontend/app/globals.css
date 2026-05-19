@@ -330,3 +330,24 @@
   0%, 100% { transform: translateY(0);   opacity: 0.5; }
   50%      { transform: translateY(6px); opacity: 1;   }
 }
+
+/* Hide hero text elements that become empty via the showStoreName / showTagline
+   / showDescription toggles in the store builder. Scoped to [data-sf-hero] so
+   it never affects accidentally-empty elements elsewhere in the app. */
+[data-sf-hero] :where(h1, h2, p):empty {
+  display: none;
+}
+
+/* Brief highlight applied to a preview section when the seller picks a layout
+   option that affected it. Pairs with `focusPreview` in store-builder.tsx — the
+   attribute is added programmatically and removed after the animation. */
+@keyframes sb-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);   outline: 2px solid rgba(99, 102, 241, 0);   }
+  20%  { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.25); outline: 2px solid rgba(99, 102, 241, 0.7); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);   outline: 2px solid rgba(99, 102, 241, 0);   }
+}
+[data-sb-pulse] {
+  animation: sb-pulse 1.4s ease-out;
+  outline-offset: -2px;
+  border-radius: 6px;
+}

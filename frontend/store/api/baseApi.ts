@@ -17,6 +17,30 @@ const rawBaseQuery = fetchBaseQuery({
   },
 })
 
+let refreshPromise: Promise<string | null> | null = null
+
+const performRefresh = async (
+  api: Parameters<BaseQueryFn>[1],
+  extraOptions: Parameters<BaseQueryFn>[2],
+): Promise<string | null> => {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    const result = await rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions)
+    if (result.data) {
+      const { access_token } = result.data as { access_token: string }
+      api.dispatch(updateToken(access_token))
+      return access_token
+    }
+    api.dispatch(logout())
+    return null
+  })()
+  try {
+    return await refreshPromise
+  } finally {
+    refreshPromise = null
+  }
+}
+
 const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
   args,
   api,
@@ -25,14 +49,9 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
   let result = await rawBaseQuery(args, api, extraOptions)
 
   if (result.error?.status === 401) {
-    const refreshResult = await rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions)
-
-    if (refreshResult.data) {
-      const { access_token } = refreshResult.data as { access_token: string }
-      api.dispatch(updateToken(access_token))
+    const newToken = await performRefresh(api, extraOptions)
+    if (newToken) {
       result = await rawBaseQuery(args, api, extraOptions)
-    } else {
-      api.dispatch(logout())
     }
   }
 

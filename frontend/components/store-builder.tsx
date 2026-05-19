@@ -52,6 +52,7 @@ import {
   Sparkles,
   Star,
   Search,
+  Package,
 } from "lucide-react"
 import { useGetMyStoreQuery, useUpdateMyStoreMutation, useUploadStoreImageMutation } from "@/store/api/storeApi"
 import { ProductCard } from "@/components/shared/product-card"
@@ -75,6 +76,7 @@ import {
   DEFAULT_ANNOUNCEMENT,
   DEFAULT_SECONDARY_CTA,
   DEFAULT_ABOUT,
+  DEFAULT_PRODUCTS_SECTION,
   DEFAULT_NEWSLETTER,
   DEFAULT_NAV,
   DEFAULT_THEME,
@@ -93,6 +95,7 @@ import {
   type Fonts,
   type BgColors,
   type HeroVariant,
+  type AboutTemplate,
   type FooterStyle,
   type FooterColors,
   type FooterAlign,
@@ -162,8 +165,9 @@ const DEFAULT_DATA: StoreData = {
   fonts:        { ...DEFAULT_FONTS },
   bgColors:     { ...DEFAULT_BG_COLORS },
   announcement: { ...DEFAULT_ANNOUNCEMENT },
-  aboutSection: { ...DEFAULT_ABOUT },
-  trustBadges:  { ...DEFAULT_TRUST_BADGES, items: [...DEFAULT_TRUST_BADGES.items] },
+  aboutSection:    { ...DEFAULT_ABOUT },
+  productsSection: { ...DEFAULT_PRODUCTS_SECTION },
+  trustBadges:     { ...DEFAULT_TRUST_BADGES, items: [...DEFAULT_TRUST_BADGES.items] },
   showFooter: true,
   footerStyle: "dark" as FooterStyle,
   footerColors: { ...DEFAULT_FOOTER_COLORS },
@@ -207,6 +211,25 @@ export default function StoreBuilder() {
   const dirtyKey = JSON.stringify(storeData)
   const isDirty = !!savedSnapshotRef.current && dirtyKey !== savedSnapshotRef.current
 
+  // Ref to the scrollable preview body. Used by `focusPreview` to scroll the
+  // preview to a specific section + briefly pulse it, so sellers can see
+  // exactly what a layout option changed (otherwise the visual diff can be too
+  // subtle to catch on a 1200px preview pane).
+  const previewBodyRef = useRef<HTMLDivElement>(null)
+  const focusPreview = (anchor: string) => {
+    const container = previewBodyRef.current
+    if (!container) return
+    const el = container.querySelector<HTMLElement>(`#${anchor}, [data-sb-anchor="${anchor}"]`)
+    if (!el) return
+    // Container-scoped scroll (scrollIntoView would scroll the whole page).
+    const elRect = el.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+    const offset = elRect.top - containerRect.top + container.scrollTop - 24
+    container.scrollTo({ top: offset, behavior: "smooth" })
+    el.setAttribute("data-sb-pulse", "")
+    setTimeout(() => el.removeAttribute("data-sb-pulse"), 1500)
+  }
+
   useEffect(() => {
     if (!storeApiData) return
     // storeToView already handles all the JSONB unpacking with safe defaults.
@@ -246,8 +269,9 @@ export default function StoreBuilder() {
           fonts:          storeData.fonts,
           bgColors:       storeData.bgColors,
           announcement:   storeData.announcement,
-          aboutSection:   storeData.aboutSection,
-          trustBadges:    storeData.trustBadges,
+          aboutSection:    storeData.aboutSection,
+          productsSection: storeData.productsSection,
+          trustBadges:     storeData.trustBadges,
         },
         footer: {
           showFooter:      storeData.showFooter,
@@ -451,65 +475,6 @@ export default function StoreBuilder() {
               />
             </SectionCard>
 
-            <SectionCard
-              icon={Palette}
-              title="Brand Colors"
-              hint="Pick a preset or define your own"
-            >
-              <Field label="Color Presets">
-                <div className="grid grid-cols-4 gap-2">
-                  {COLOR_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      onClick={() => {
-                        update("primaryColor", preset.primary)
-                        update("secondaryColor", preset.secondary)
-                      }}
-                      title={preset.name}
-                      className="group relative h-10 rounded-xl overflow-hidden border-2 hover:border-foreground/50 transition-all"
-                      style={{
-                        background: `linear-gradient(135deg, ${preset.primary} 0%, ${preset.secondary} 100%)`,
-                        borderColor:
-                          storeData.primaryColor === preset.primary ? preset.primary : "transparent",
-                      }}
-                    >
-                      {storeData.primaryColor === preset.primary && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Check className="w-4 h-4 text-white drop-shadow" />
-                        </div>
-                      )}
-                      <span className="sr-only">{preset.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-4 gap-2 mt-1">
-                  {COLOR_PRESETS.map((p) => (
-                    <p key={p.name} className="text-[10px] text-center text-muted-foreground truncate px-0.5">
-                      {p.name}
-                    </p>
-                  ))}
-                </div>
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Primary">
-                  <Input
-                    type="color"
-                    value={storeData.primaryColor}
-                    onChange={(e) => update("primaryColor", e.target.value)}
-                    className="h-10 w-full cursor-pointer p-1"
-                  />
-                </Field>
-                <Field label="Secondary">
-                  <Input
-                    type="color"
-                    value={storeData.secondaryColor}
-                    onChange={(e) => update("secondaryColor", e.target.value)}
-                    className="h-10 w-full cursor-pointer p-1"
-                  />
-                </Field>
-              </div>
-            </SectionCard>
 
             <SectionCard
               icon={Type}
@@ -607,155 +572,31 @@ export default function StoreBuilder() {
                 </div>
               </Field>
 
-              <Field label="Container Width">
-                <VisualOptionGroup<Theme["containerWidth"]>
-                  value={storeData.theme.containerWidth}
-                  onChange={(v) => update("theme", { ...storeData.theme, containerWidth: v })}
-                  options={[
-                    {
-                      value: "narrow",
-                      label: "Narrow",
-                      preview: (
-                        <svg viewBox="0 0 24 12" className="w-6 h-3">
-                          <rect x="9" y="2" width="6" height="8" rx="1" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "standard",
-                      label: "Standard",
-                      preview: (
-                        <svg viewBox="0 0 24 12" className="w-6 h-3">
-                          <rect x="6" y="2" width="12" height="8" rx="1" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "wide",
-                      label: "Wide",
-                      preview: (
-                        <svg viewBox="0 0 24 12" className="w-6 h-3">
-                          <rect x="3" y="2" width="18" height="8" rx="1" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "full",
-                      label: "Full",
-                      preview: (
-                        <svg viewBox="0 0 24 12" className="w-6 h-3">
-                          <rect x="0" y="2" width="24" height="8" rx="1" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                  ]}
-                />
-              </Field>
-
-              <Field label="Section Spacing">
-                <VisualOptionGroup<Theme["sectionSpacing"]>
-                  value={storeData.theme.sectionSpacing}
-                  onChange={(v) => update("theme", { ...storeData.theme, sectionSpacing: v })}
-                  options={[
-                    {
-                      value: "compact",
-                      label: "Compact",
-                      preview: (
-                        <svg viewBox="0 0 24 14" className="w-6 h-3.5">
-                          <rect x="3" y="2"  width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="6"  width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="10" width="18" height="3" rx="0.5" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "comfortable",
-                      label: "Comfortable",
-                      preview: (
-                        <svg viewBox="0 0 24 16" className="w-6 h-3.5">
-                          <rect x="3" y="1"  width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="6.5" width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="12" width="18" height="3" rx="0.5" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                    {
-                      value: "airy",
-                      label: "Airy",
-                      preview: (
-                        <svg viewBox="0 0 24 18" className="w-6 h-3.5">
-                          <rect x="3" y="0"  width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="7.5" width="18" height="3" rx="0.5" fill="currentColor" />
-                          <rect x="3" y="15" width="18" height="3" rx="0.5" fill="currentColor" />
-                        </svg>
-                      ),
-                    },
-                  ]}
-                />
-              </Field>
-
-              <Field label="Product Card Style">
-                <ProductCardStylePicker
-                  value={storeData.theme.productCardStyle}
-                  onChange={(v) => update("theme", { ...storeData.theme, productCardStyle: v })}
-                  accentColor={storeData.primaryColor}
-                />
-              </Field>
-
-              <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium leading-tight">Show ratings on cards</p>
-                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Hide if you don't have reviews yet</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={storeData.theme.showProductRating}
-                  onCheckedChange={(v) => update("theme", { ...storeData.theme, showProductRating: v })}
-                />
-              </div>
-
-              <div className="pt-3 border-t space-y-2">
-                <div className="flex items-center gap-2">
-                  <Paintbrush className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Section Backgrounds</p>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Override default backgrounds. Leave blank to use the default.
+              <Field label="Page Width">
+                <p className="text-[11px] text-muted-foreground mb-2 -mt-1 leading-snug">
+                  How wide your content sits on big screens. Narrow keeps things focused; wide fits more products per row.
                 </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { key: "about",    label: "About"    },
-                    { key: "products", label: "Products" },
-                    { key: "footer",   label: "Footer"   },
-                  ] as const).map(({ key, label }) => (
-                    <div key={key} className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</Label>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="color"
-                          value={storeData.bgColors[key] || "#ffffff"}
-                          onChange={(e) =>
-                            update("bgColors", { ...storeData.bgColors, [key]: e.target.value })
-                          }
-                          className="h-9 w-9 p-1 cursor-pointer shrink-0"
-                        />
-                        {storeData.bgColors[key] && (
-                          <button
-                            type="button"
-                            onClick={() => update("bgColors", { ...storeData.bgColors, [key]: "" })}
-                            className="h-9 w-9 rounded-md border bg-muted/40 flex items-center justify-center text-muted-foreground hover:text-foreground"
-                            aria-label="Reset"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <ContainerWidthPicker
+                  value={storeData.theme.containerWidth}
+                  onChange={(v) => {
+                    update("theme", { ...storeData.theme, containerWidth: v })
+                    focusPreview("products")
+                  }}
+                />
+              </Field>
+
+              <Field label="Space Between Sections">
+                <p className="text-[11px] text-muted-foreground mb-2 -mt-1 leading-snug">
+                  How much breathing room between Hero / About / Products / Footer. More space = more scrolling but a calmer feel.
+                </p>
+                <SectionSpacingPicker
+                  value={storeData.theme.sectionSpacing}
+                  onChange={(v) => {
+                    update("theme", { ...storeData.theme, sectionSpacing: v })
+                    focusPreview("products")
+                  }}
+                />
+              </Field>
 
               <div className="pt-3 border-t">
                 <div className="flex items-center justify-between">
@@ -936,22 +777,35 @@ export default function StoreBuilder() {
 
                 <Field label="Primary Button">
                   <div className="space-y-2">
-                    <Input
-                      value={storeData.ctaText}
-                      onChange={(e) => update("ctaText", e.target.value)}
-                      placeholder="Shop Now"
-                    />
-                    <div className="flex items-center gap-2">
-                      <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <Input
-                        value={storeData.ctaLink}
-                        onChange={(e) => update("ctaLink", e.target.value)}
-                        placeholder="#products  ·  /category/jewelry  ·  https://…"
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
+                      <span className="text-xs font-medium">Show primary button</span>
+                      <Switch
+                        checked={storeData.heroVariant.showPrimaryCta}
+                        onCheckedChange={(v) =>
+                          update("heroVariant", { ...storeData.heroVariant, showPrimaryCta: v })
+                        }
                       />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Where the button links. Default <code className="px-1 py-0.5 rounded bg-muted">#products</code> scrolls to the products grid.
-                    </p>
+                    {storeData.heroVariant.showPrimaryCta && (
+                      <>
+                        <Input
+                          value={storeData.ctaText}
+                          onChange={(e) => update("ctaText", e.target.value)}
+                          placeholder="Shop Now"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <Input
+                            value={storeData.ctaLink}
+                            onChange={(e) => update("ctaLink", e.target.value)}
+                            placeholder="#products  ·  /category/jewelry  ·  https://…"
+                          />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Where the button links. Default <code className="px-1 py-0.5 rounded bg-muted">#products</code> scrolls to the products grid.
+                        </p>
+                      </>
+                    )}
                   </div>
                 </Field>
 
@@ -1015,78 +869,229 @@ export default function StoreBuilder() {
                     Affects Bold, Cinematic, Wave & Magazine templates.
                   </p>
                 </Field>
+
+                <Field label="What to Show">
+                  <div className="rounded-lg border bg-muted/20 divide-y">
+                    {(
+                      [
+                        { key: "showStoreName",   label: "Store name",   hint: "The big title in the hero" },
+                        { key: "showTagline",     label: "Tagline",      hint: "Short line under the name" },
+                        { key: "showDescription", label: "Description",  hint: "Longer paragraph below" },
+                      ] as const
+                    ).map(({ key, label, hint }) => (
+                      <div key={key} className="flex items-center justify-between px-3 py-2 gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium leading-tight">{label}</p>
+                          <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{hint}</p>
+                        </div>
+                        <Switch
+                          checked={storeData.heroVariant[key]}
+                          onCheckedChange={(v) =>
+                            update("heroVariant", { ...storeData.heroVariant, [key]: v })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Hide anything you don't want in the hero — works across all templates.
+                  </p>
+                </Field>
+              </div>
+
+              {/* ── Sub-section: Brand Colors ── */}
+              <div className="pt-4 border-t space-y-3">
+                <div className="flex items-center gap-2">
+                  <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Brand Colors</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  These cascade to every other section that doesn't set its own. Pick a preset or define your own.
+                </p>
+                <Field label="Color Presets">
+                  <div className="grid grid-cols-4 gap-2">
+                    {COLOR_PRESETS.map((preset) => {
+                      const heroPrimary = storeData.heroVariant.primaryColor || storeData.primaryColor
+                      const active = heroPrimary === preset.primary
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() =>
+                            update("heroVariant", {
+                              ...storeData.heroVariant,
+                              primaryColor: preset.primary,
+                              secondaryColor: preset.secondary,
+                            })
+                          }
+                          title={preset.name}
+                          className="group relative h-10 rounded-xl overflow-hidden border-2 hover:border-foreground/50 transition-all"
+                          style={{
+                            background: `linear-gradient(135deg, ${preset.primary} 0%, ${preset.secondary} 100%)`,
+                            borderColor: active ? preset.primary : "transparent",
+                          }}
+                        >
+                          {active && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white drop-shadow" />
+                            </div>
+                          )}
+                          <span className="sr-only">{preset.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 mt-1">
+                    {COLOR_PRESETS.map((p) => (
+                      <p key={p.name} className="text-[10px] text-center text-muted-foreground truncate px-0.5">
+                        {p.name}
+                      </p>
+                    ))}
+                  </div>
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Primary">
+                    <Input
+                      type="color"
+                      value={storeData.heroVariant.primaryColor || storeData.primaryColor}
+                      onChange={(e) =>
+                        update("heroVariant", { ...storeData.heroVariant, primaryColor: e.target.value })
+                      }
+                      className="h-10 w-full cursor-pointer p-1"
+                    />
+                  </Field>
+                  <Field label="Secondary">
+                    <Input
+                      type="color"
+                      value={storeData.heroVariant.secondaryColor || storeData.secondaryColor}
+                      onChange={(e) =>
+                        update("heroVariant", { ...storeData.heroVariant, secondaryColor: e.target.value })
+                      }
+                      className="h-10 w-full cursor-pointer p-1"
+                    />
+                  </Field>
+                </div>
               </div>
 
               {/* ── Sub-section: Overlay ── */}
               <div className="pt-4 border-t space-y-3">
                 <div className="flex items-center gap-2">
                   <Paintbrush className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Overlay</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Overlay Tint</p>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Tinted wash over your hero media. Affects templates with image or video backgrounds.
+                  Tints your hero image with a color. Works on templates with image or video backgrounds.
                 </p>
 
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="color"
-                    value={storeData.heroVariant.overlayColor || "#000000"}
-                    onChange={(e) =>
-                      update("heroVariant", { ...storeData.heroVariant, overlayColor: e.target.value })
-                    }
-                    className="h-10 w-14 p-1 cursor-pointer shrink-0"
-                    aria-label="Overlay color"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                        Opacity
-                      </Label>
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {storeData.heroVariant.overlayOpacity}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={storeData.heroVariant.overlayOpacity}
-                      onChange={(e) =>
-                        update("heroVariant", { ...storeData.heroVariant, overlayOpacity: Number(e.target.value) })
-                      }
-                      className="w-full accent-primary"
-                    />
-                  </div>
-                </div>
+                {(() => {
+                  const brandColor = storeData.heroVariant.primaryColor || storeData.primaryColor
+                  const currentColor = storeData.heroVariant.overlayColor || "#000000"
+                  const opacity = storeData.heroVariant.overlayOpacity
+                  // The actual hex+alpha that gets blended on top of the image
+                  const previewTint = `${currentColor}${Math.round((opacity / 100) * 255).toString(16).padStart(2, "0").toUpperCase()}`
+                  // Sample inline-SVG "photo" so the preview works without an
+                  // uploaded image — gives the seller something to see tint over.
+                  const samplePhoto = `data:image/svg+xml;utf8,${encodeURIComponent(
+                    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'><defs><linearGradient id='s' x1='0' x2='1' y1='0' y2='1'><stop offset='0' stop-color='#fb923c'/><stop offset='0.5' stop-color='#f97316'/><stop offset='1' stop-color='#7c2d12'/></linearGradient></defs><rect width='400' height='200' fill='url(#s)'/><circle cx='80' cy='160' r='40' fill='#fde68a' opacity='0.55'/><circle cx='320' cy='50' r='60' fill='#fef3c7' opacity='0.35'/><path d='M0 130 Q100 90 200 130 T400 130 V200 H0 Z' fill='#451a03' opacity='0.5'/></svg>`,
+                  )}`
+                  const heroImg = storeData.heroVariant.imageUrl || samplePhoto
 
-                {/* Quick color presets */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">Presets:</span>
-                  {[
-                    { color: "#000000", name: "Black" },
-                    { color: "#0f172a", name: "Navy"  },
-                    { color: "#7f1d1d", name: "Wine"  },
-                    { color: storeData.primaryColor, name: "Brand" },
-                  ].map((p) => (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() =>
-                        update("heroVariant", { ...storeData.heroVariant, overlayColor: p.color })
-                      }
-                      className={cn(
-                        "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110",
-                        storeData.heroVariant.overlayColor.toLowerCase() === p.color.toLowerCase()
-                          ? "border-foreground"
-                          : "border-border",
-                      )}
-                      style={{ backgroundColor: p.color }}
-                      title={p.name}
-                      aria-label={`Set overlay to ${p.name}`}
-                    />
-                  ))}
-                </div>
+                  return (
+                    <>
+                      {/* Live preview — sample photo with tint applied. The seller sees the EXACT result here. */}
+                      <div className="relative overflow-hidden rounded-lg border bg-muted aspect-[2/1] shadow-inner">
+                        <img src={heroImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div
+                          className="absolute inset-0 transition-colors"
+                          style={{ backgroundColor: previewTint, mixBlendMode: "multiply" }}
+                        />
+                        {/* Faux hero text to show contrast */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/80">Preview</span>
+                          <span className="text-xl font-bold tracking-tight drop-shadow">Your Store</span>
+                        </div>
+                        {/* Mini hex badge in the corner */}
+                        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/40 backdrop-blur-sm">
+                          <span className="text-[10px] font-mono font-semibold text-white">
+                            {currentColor.toUpperCase()} · {opacity}%
+                          </span>
+                        </div>
+                        {!storeData.heroVariant.imageUrl && (
+                          <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/40 backdrop-blur-sm">
+                            <span className="text-[9px] text-white/80">Sample image</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Color picker — single, prominent control */}
+                      <div>
+                        <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
+                          Color
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="color"
+                            value={currentColor}
+                            onChange={(e) =>
+                              update("heroVariant", { ...storeData.heroVariant, overlayColor: e.target.value })
+                            }
+                            className="h-10 w-14 p-1 cursor-pointer shrink-0"
+                            aria-label="Overlay color"
+                          />
+                          <Input
+                            type="text"
+                            value={currentColor}
+                            onChange={(e) =>
+                              update("heroVariant", { ...storeData.heroVariant, overlayColor: e.target.value })
+                            }
+                            className="font-mono text-xs flex-1"
+                            placeholder="#000000"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              update("heroVariant", { ...storeData.heroVariant, overlayColor: brandColor })
+                            }
+                            className="h-9 px-2.5 rounded-md border bg-background hover:bg-muted/40 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors shrink-0 flex items-center gap-1.5"
+                            title="Use the brand color"
+                          >
+                            <span
+                              className="w-3 h-3 rounded-sm border border-border"
+                              style={{ backgroundColor: brandColor }}
+                            />
+                            Brand
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Opacity */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                            Strength
+                          </Label>
+                          <span className="text-xs font-mono font-bold text-foreground">{opacity}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={opacity}
+                          onChange={(e) =>
+                            update("heroVariant", { ...storeData.heroVariant, overlayOpacity: Number(e.target.value) })
+                          }
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>No tint</span>
+                          <span>Subtle</span>
+                          <span>Strong</span>
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </SectionCard>
 
@@ -1098,6 +1103,31 @@ export default function StoreBuilder() {
               onToggle={(v) => update("aboutSection", { ...storeData.aboutSection, enabled: v })}
               onReset={() => update("aboutSection", { ...DEFAULT_ABOUT, enabled: true })}
             >
+              <Field label="Layout">
+                <AboutTemplatePicker
+                  value={storeData.aboutSection.template}
+                  onChange={(t) =>
+                    update("aboutSection", { ...storeData.aboutSection, template: t })
+                  }
+                  accentColor={storeData.primaryColor}
+                />
+              </Field>
+              {storeData.aboutSection.template === "split" && (
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-tight">Image on the right</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                      Flip the split — text on the left, image on the right.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={storeData.aboutSection.flip}
+                    onCheckedChange={(v) =>
+                      update("aboutSection", { ...storeData.aboutSection, flip: v })
+                    }
+                  />
+                </div>
+              )}
               <Field label="Heading">
                 <Input
                   value={storeData.aboutSection.heading}
@@ -1120,6 +1150,85 @@ export default function StoreBuilder() {
                 hint="Optional — shown next to the text. Leaving it empty centers the text."
                 onUploaded={(url) => update("aboutSection", { ...storeData.aboutSection, imageUrl: url })}
               />
+              <SectionAccentPicker
+                value={storeData.aboutSection.accentColor}
+                onChange={(c) => update("aboutSection", { ...storeData.aboutSection, accentColor: c })}
+                inheritFrom={storeData.heroVariant.primaryColor || storeData.primaryColor}
+                hint="Used for the About kicker, accent underline, and decorative dividers."
+              />
+              <SectionBgPicker
+                value={storeData.bgColors.about}
+                onChange={(c) => update("bgColors", { ...storeData.bgColors, about: c })}
+                hint="Override the default. Leave blank to use the theme background."
+              />
+            </SectionCard>
+
+            <SectionCard
+              icon={Package}
+              title="Products Section"
+              hint="The grid of your products — title, card style, ratings, color & background."
+            >
+              <Field label="Heading">
+                <Input
+                  value={storeData.productsSection.heading}
+                  onChange={(e) =>
+                    update("productsSection", { ...storeData.productsSection, heading: e.target.value })
+                  }
+                  placeholder="Products"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Leave blank to keep the default "Products" title.
+                </p>
+              </Field>
+              <Field label="Subheading">
+                <Textarea
+                  value={storeData.productsSection.subheading}
+                  onChange={(e) =>
+                    update("productsSection", { ...storeData.productsSection, subheading: e.target.value })
+                  }
+                  placeholder="Browse our handpicked selection…"
+                  rows={2}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Leave blank to show the live product count instead.
+                </p>
+              </Field>
+
+              <Field label="Product Card Style">
+                <ProductCardStylePicker
+                  value={storeData.theme.productCardStyle}
+                  onChange={(v) => update("theme", { ...storeData.theme, productCardStyle: v })}
+                  accentColor={storeData.heroVariant.primaryColor || storeData.primaryColor}
+                />
+              </Field>
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-tight">Show ratings on cards</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Hide if you don't have reviews yet</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={storeData.theme.showProductRating}
+                  onCheckedChange={(v) => update("theme", { ...storeData.theme, showProductRating: v })}
+                />
+              </div>
+
+              <SectionAccentPicker
+                value={storeData.productsSection.accentColor}
+                onChange={(c) =>
+                  update("productsSection", { ...storeData.productsSection, accentColor: c })
+                }
+                inheritFrom={storeData.heroVariant.primaryColor || storeData.primaryColor}
+                hint="Used for product prices and the active category chip."
+              />
+              <SectionBgPicker
+                value={storeData.bgColors.products}
+                onChange={(c) => update("bgColors", { ...storeData.bgColors, products: c })}
+                hint="Override the default. Leave blank to use the theme background."
+              />
             </SectionCard>
 
             <SectionCard
@@ -1132,6 +1241,12 @@ export default function StoreBuilder() {
               <TrustBadgesEditor
                 trustBadges={storeData.trustBadges}
                 onChange={(t) => update("trustBadges", t)}
+              />
+              <SectionAccentPicker
+                value={storeData.trustBadges.accentColor}
+                onChange={(c) => update("trustBadges", { ...storeData.trustBadges, accentColor: c })}
+                inheritFrom={storeData.heroVariant.primaryColor || storeData.primaryColor}
+                hint="Tints the badge icons."
               />
             </SectionCard>
 
@@ -1464,7 +1579,10 @@ export default function StoreBuilder() {
             </div>
 
             {/* Scrollable preview body */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-white">
+            <div
+              ref={previewBodyRef}
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-white"
+            >
               <StorePreview data={storeData} />
             </div>
           </div>
@@ -1475,6 +1593,110 @@ export default function StoreBuilder() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Per-section accent color picker. Same UI shape as SectionBgPicker but the
+ * empty-value semantic is different: empty = inherit from the brand color
+ * (Hero's primary or, before any hero override, the legacy view.primaryColor).
+ * Optionally accepts an `inheritFrom` color that we show next to the picker as
+ * the live "inherited" swatch so the seller knows what they'll get if they
+ * leave it blank.
+ */
+function SectionAccentPicker({
+  value,
+  onChange,
+  inheritFrom,
+  label = "Accent Color",
+  hint,
+}: {
+  value: string
+  onChange: (v: string) => void
+  inheritFrom?: string
+  label?: string
+  hint?: string
+}) {
+  const effective = value || inheritFrom || "#888888"
+  return (
+    <Field label={label}>
+      <div className="flex items-center gap-2">
+        <Input
+          type="color"
+          value={effective}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 p-1 cursor-pointer shrink-0"
+        />
+        <Input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={inheritFrom ? `Inherits ${inheritFrom}` : "Inherits brand"}
+          className="font-mono text-xs"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="h-9 w-9 rounded-md border bg-muted/40 flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Reset to brand"
+            title="Reset to brand"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-1">
+        {hint ?? "Leave blank to inherit from the brand color (set in the Hero section)."}
+      </p>
+    </Field>
+  )
+}
+
+/**
+ * Per-section background color picker. Pulls and writes a single key in
+ * `storeData.bgColors` so each section can own its own bg picker UI while the
+ * underlying data stays consolidated. Empty value = use the theme default.
+ */
+function SectionBgPicker({
+  value,
+  onChange,
+  hint,
+}: {
+  value: string
+  onChange: (v: string) => void
+  hint?: string
+}) {
+  return (
+    <Field label="Background Color">
+      <div className="flex items-center gap-2">
+        <Input
+          type="color"
+          value={value || "#ffffff"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 p-1 cursor-pointer shrink-0"
+        />
+        <Input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Default (transparent)"
+          className="font-mono text-xs"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="h-9 w-9 rounded-md border bg-muted/40 flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Reset to default"
+            title="Reset"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {hint && <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>}
+    </Field>
+  )
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1538,6 +1760,165 @@ function VisualOptionGroup<T extends string>({
  * (faux image + name + price) rather than an abstract SVG, plus a one-line hint
  * explaining when to use it — so sellers can pick on sight, not by guessing.
  */
+/**
+ * Visual picker for the page max-width. Replaces an abstract 4-button row with
+ * realistic page mockups + plain-language hints — sellers see "this is how my
+ * store would look on a desktop monitor at each width" rather than guessing
+ * what "Narrow" vs "Wide" actually means.
+ */
+/**
+ * Visual picker for the vertical spacing between page sections. Replaces the
+ * generic VisualOptionGroup with a dedicated mock that shows three stacked
+ * "sections" at the chosen gap — sellers can see how compressed or airy the
+ * page feels without having to scroll the preview pane.
+ */
+function SectionSpacingPicker({
+  value,
+  onChange,
+}: {
+  value: Theme["sectionSpacing"]
+  onChange: (v: Theme["sectionSpacing"]) => void
+}) {
+  const options: Array<{ value: Theme["sectionSpacing"]; label: string; hint: string; gapPx: number }> = [
+    { value: "compact",     label: "Tight",    hint: "Less scrolling, dense", gapPx: 2 },
+    { value: "comfortable", label: "Balanced", hint: "Most stores",           gapPx: 6 },
+    { value: "airy",        label: "Spacious", hint: "Premium, lots of room", gapPx: 12 },
+  ]
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "group relative flex flex-col items-stretch gap-2 rounded-lg border bg-muted/20 p-2 text-left transition-all",
+              "hover:bg-muted/40 hover:border-foreground/30",
+              active
+                ? "border-foreground/80 bg-background shadow-sm ring-2 ring-foreground/10"
+                : "border-border text-muted-foreground",
+            )}
+            aria-pressed={active}
+          >
+            {/* Three stacked section bars with the chosen gap */}
+            <div className={cn(
+              "rounded-md bg-background/80 border p-1.5 flex flex-col",
+              active ? "border-foreground/30" : "border-border/60",
+            )}
+            style={{ gap: `${opt.gapPx}px` }}
+            >
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-2 rounded-sm",
+                    active ? "bg-foreground/30" : "bg-muted-foreground/30",
+                  )}
+                />
+              ))}
+            </div>
+            <div className="space-y-0.5 px-0.5">
+              <div className={cn("text-xs font-semibold", active ? "text-foreground" : "text-foreground/80")}>
+                {opt.label}
+              </div>
+              <div className="text-[10px] leading-tight text-muted-foreground line-clamp-1">
+                {opt.hint}
+              </div>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ContainerWidthPicker({
+  value,
+  onChange,
+}: {
+  value: Theme["containerWidth"]
+  onChange: (v: Theme["containerWidth"]) => void
+}) {
+  // Each mock shows a faux desktop viewport (light gray) with the inner
+  // content area highlighted at the percentage that template would render.
+  const options: Array<{ value: Theme["containerWidth"]; label: string; hint: string; widthPct: number }> = [
+    { value: "narrow",   label: "Narrow",   hint: "≈ 2 products per row",   widthPct: 42 },
+    { value: "standard", label: "Standard", hint: "≈ 3 products per row",   widthPct: 64 },
+    { value: "wide",     label: "Wide",     hint: "≈ 4 products per row",   widthPct: 84 },
+    { value: "full",     label: "Full",     hint: "Fills the whole screen", widthPct: 100 },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "group relative flex flex-col items-stretch gap-2 rounded-lg border bg-muted/20 p-2 text-left transition-all",
+              "hover:bg-muted/40 hover:border-foreground/30",
+              active
+                ? "border-foreground/80 bg-background shadow-sm ring-2 ring-foreground/10"
+                : "border-border text-muted-foreground",
+            )}
+            aria-pressed={active}
+          >
+            {/* Desktop viewport mock */}
+            <div className={cn(
+              "rounded-md bg-background/80 border p-1.5",
+              active ? "border-foreground/30" : "border-border/60",
+            )}>
+              {/* Browser chrome dots */}
+              <div className="flex gap-0.5 mb-1">
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
+              </div>
+              {/* Content area at the chosen width, centered */}
+              <div className="flex justify-center">
+                <div
+                  className={cn(
+                    "h-8 rounded-sm space-y-0.5 p-0.5",
+                    active ? "bg-foreground/15" : "bg-muted-foreground/15",
+                  )}
+                  style={{ width: `${opt.widthPct}%` }}
+                >
+                  <div className={cn(
+                    "h-1 rounded-sm w-3/4",
+                    active ? "bg-foreground/40" : "bg-muted-foreground/35",
+                  )} />
+                  <div className={cn(
+                    "h-1 rounded-sm",
+                    active ? "bg-foreground/25" : "bg-muted-foreground/25",
+                  )} />
+                  <div className={cn(
+                    "h-1 rounded-sm w-2/3",
+                    active ? "bg-foreground/25" : "bg-muted-foreground/25",
+                  )} />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-0.5 px-0.5">
+              <div className={cn("text-xs font-semibold", active ? "text-foreground" : "text-foreground/80")}>
+                {opt.label}
+              </div>
+              <div className="text-[10px] leading-tight text-muted-foreground line-clamp-1">
+                {opt.hint}
+              </div>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function ProductCardStylePicker({
   value,
   onChange,
@@ -1597,6 +1978,180 @@ function ProductCardStylePicker({
               <div className="h-1 rounded-sm w-1/3" style={{ background: accentColor ?? "white" }} />
             </div>
           </div>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "group relative flex flex-col items-stretch gap-2 rounded-lg border bg-muted/20 p-2 text-left transition-all",
+              "hover:bg-muted/40 hover:border-foreground/30",
+              active
+                ? "border-foreground/80 bg-background shadow-sm ring-2 ring-foreground/10"
+                : "border-border text-muted-foreground",
+            )}
+            aria-pressed={active}
+          >
+            <div className={cn(
+              "flex items-center justify-center rounded-md bg-background/80 p-2 min-h-[60px]",
+              active ? "text-foreground" : "text-muted-foreground/80",
+            )}>
+              {opt.mock}
+            </div>
+            <div className="space-y-0.5 px-0.5">
+              <div className={cn("text-xs font-semibold", active ? "text-foreground" : "text-foreground/80")}>
+                {opt.label}
+              </div>
+              <div className="text-[10px] leading-tight text-muted-foreground line-clamp-2">
+                {opt.hint}
+              </div>
+            </div>
+            {active && (
+              <div
+                className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow"
+                style={{ background: accentColor ?? "var(--primary)" }}
+                aria-hidden
+              >
+                ✓
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Visual picker for the About section layout template. Same pattern as the
+ * product-card-style picker — realistic mini-mockups + a short hint, so the
+ * seller can pick on sight rather than guess from an abstract label.
+ */
+function AboutTemplatePicker({
+  value,
+  onChange,
+  accentColor,
+}: {
+  value: AboutTemplate
+  onChange: (v: AboutTemplate) => void
+  accentColor?: string
+}) {
+  const accent = accentColor ?? "currentColor"
+  const options: Array<{ value: AboutTemplate; label: string; hint: string; mock: React.ReactNode }> = [
+    {
+      value: "split",
+      label: "Split",
+      hint: "Image + text side by side",
+      mock: (
+        <div className="flex gap-1.5 w-full">
+          <div className="aspect-square w-1/2 rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+          <div className="w-1/2 space-y-1 flex flex-col justify-center">
+            <div className="h-1 rounded-sm w-3/4" style={{ background: accent }} />
+            <div className="h-0.5 rounded-sm bg-muted-foreground/40" />
+            <div className="h-0.5 rounded-sm w-5/6 bg-muted-foreground/40" />
+            <div className="h-0.5 rounded-sm w-2/3 bg-muted-foreground/40" />
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: "centered",
+      label: "Centered",
+      hint: "Narrow column, text centered",
+      mock: (
+        <div className="w-full space-y-1 flex flex-col items-center">
+          <div className="aspect-[4/3] w-1/2 rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+          <div className="h-1 rounded-sm w-1/2" style={{ background: accent }} />
+          <div className="h-0.5 rounded-sm w-3/4 bg-muted-foreground/40" />
+          <div className="h-0.5 rounded-sm w-2/3 bg-muted-foreground/40" />
+        </div>
+      ),
+    },
+    {
+      value: "editorial",
+      label: "Editorial",
+      hint: "Big italic quote, wide image",
+      mock: (
+        <div className="w-full space-y-1">
+          <div className="aspect-[3/1] rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+          <div className="flex flex-col items-center pt-0.5">
+            <div className="h-0.5 rounded-sm w-1/3" style={{ background: accent }} />
+            <div className="italic text-[6px] leading-none mt-0.5 text-muted-foreground">"…"</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: "image-overlay",
+      label: "Overlay",
+      hint: "Full-bleed image, text on top",
+      mock: (
+        <div className="relative w-full aspect-[5/3] rounded-sm overflow-hidden bg-gradient-to-br from-muted-foreground/50 to-muted-foreground/25">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+            <div className="h-1 rounded-sm w-1/2 bg-white/90" />
+            <div className="h-0.5 rounded-sm w-2/3 bg-white/70" />
+            <div className="h-0.5 rounded-sm w-1/3" style={{ background: accent }} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: "card",
+      label: "Card",
+      hint: "Boxed content over a tinted bg",
+      mock: (
+        <div className="w-full p-1 rounded-sm bg-gradient-to-br from-muted-foreground/15 to-muted-foreground/5">
+          <div className="bg-background rounded-sm shadow-sm p-1 flex gap-1">
+            <div className="w-1/2 aspect-square rounded-[2px] bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
+            <div className="flex-1 space-y-0.5 flex flex-col justify-center">
+              <div className="h-0.5 rounded-sm w-1/2" style={{ background: accent }} />
+              <div className="h-0.5 rounded-sm bg-muted-foreground/40" />
+              <div className="h-0.5 rounded-sm w-3/4 bg-muted-foreground/40" />
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: "polaroid",
+      label: "Polaroid",
+      hint: "Tilted photo, handcrafted feel",
+      mock: (
+        <div className="flex gap-1.5 items-center w-full">
+          <div className="bg-white p-0.5 pb-1.5 shadow-md rotate-[-6deg] shrink-0">
+            <div className="w-7 h-7 bg-gradient-to-br from-muted-foreground/40 to-muted-foreground/20" />
+          </div>
+          <div className="flex-1 space-y-0.5">
+            <div className="h-1 rounded-sm w-3/4" style={{ background: accent }} />
+            <div className="h-0.5 rounded-sm bg-muted-foreground/40" />
+            <div className="h-0.5 rounded-sm w-2/3 bg-muted-foreground/40" />
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: "minimal",
+      label: "Minimal",
+      hint: "Text-only, big display type",
+      mock: (
+        <div className="w-full space-y-1 flex flex-col items-center">
+          <div className="flex items-center gap-1 w-full">
+            <span className="h-px flex-1 bg-muted-foreground/40" />
+            <span className="text-[5px] font-bold tracking-widest text-muted-foreground/60">ABOUT</span>
+            <span className="h-px flex-1 bg-muted-foreground/40" />
+          </div>
+          <div className="h-1.5 rounded-sm w-2/3 bg-foreground/80" />
+          <div className="h-0.5 rounded-sm w-1/2 bg-muted-foreground/40" />
         </div>
       ),
     },
@@ -2479,7 +3034,16 @@ function TemplateCard({
 // real public store page exactly. No `ctaHref` is passed in preview, so the
 // hero CTA renders as a non-navigating <button>.
 
-function StorePreview({ data }: { data: StoreData }) {
+function StorePreview({ data: rawData }: { data: StoreData }) {
+  // Mirror storeToView's derivation so the preview reflects per-section brand
+  // overrides immediately — without this, view.primaryColor would stay frozen
+  // at the legacy seed and section accents that "inherit" would show the wrong
+  // color the moment the seller picks a hero color.
+  const data: StoreData = {
+    ...rawData,
+    primaryColor:   rawData.heroVariant.primaryColor   || rawData.primaryColor,
+    secondaryColor: rawData.heroVariant.secondaryColor || rawData.secondaryColor,
+  }
   // Strip ctaHref to keep the preview click-inert
   const previewView: StorefrontView = { ...data, ctaHref: undefined }
   // Body font wrapper (matches the public page treatment)
@@ -2544,6 +3108,7 @@ function previewProductImage(hue: number, accent: string): string {
 function PreviewProducts({ view }: { view: StorefrontView }) {
   const tokens = themeTokens(view.theme)
   const productsBgStyle = view.bgColors.products ? { backgroundColor: view.bgColors.products } : undefined
+  const productsAccent = view.productsSection.accentColor || view.primaryColor
   const headingStyle: React.CSSProperties | undefined =
     view.fonts.headingFont !== "system" ? { fontFamily: fontFamily(view.fonts.headingFont) } : undefined
   const bodyStyle: React.CSSProperties | undefined =
@@ -2566,9 +3131,12 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
         {/* Header — matches live storefront layout (title + search) */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold mb-2 tracking-tight" style={headingStyle}>Products</h2>
+            <h2 className="text-3xl font-bold mb-2 tracking-tight" style={headingStyle}>
+              {view.productsSection.heading || "Products"}
+            </h2>
             <p className="text-muted-foreground text-sm" style={bodyStyle}>
-              {PREVIEW_PRODUCTS.length} products · sample preview — replace with your real inventory
+              {view.productsSection.subheading
+                || `${PREVIEW_PRODUCTS.length} products · sample preview — replace with your real inventory`}
             </p>
           </div>
           <div className="relative w-full sm:w-72 shrink-0 opacity-70 pointer-events-none select-none">
@@ -2594,7 +3162,7 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
                     "rounded-full border px-4 py-1.5 text-sm transition-colors select-none",
                     active ? "border-transparent text-white" : "bg-background text-foreground",
                   )}
-                  style={active ? { backgroundColor: view.primaryColor } : undefined}
+                  style={active ? { backgroundColor: productsAccent } : undefined}
                 >
                   {label}
                 </span>
@@ -2609,14 +3177,14 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
               key={p.id}
               variant={view.theme.productCardStyle}
               borderRadius={view.theme.borderRadius}
-              accentColor={view.primaryColor}
+              accentColor={productsAccent}
               showRating={view.theme.showProductRating}
               showAddToCart={false}
               product={{
                 id: p.id,
                 name: p.name,
                 price: p.price,
-                image: previewProductImage(p.hue, view.primaryColor),
+                image: previewProductImage(p.hue, productsAccent),
                 rating: p.rating,
                 inStock: true,
               }}

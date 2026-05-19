@@ -193,17 +193,21 @@ export default function StorePageContent({ store, products, productsLoading }: S
         <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
           <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold mb-2" style={headingStyle}>Products</h2>
+              <h2 className="text-3xl font-bold mb-2" style={headingStyle}>
+                {view.productsSection.heading || "Products"}
+              </h2>
               <p className="text-muted-foreground">
-                {productsLoading
-                  ? "Loading products..."
-                  : `${visibleProducts.length} product${visibleProducts.length !== 1 ? "s" : ""}${
-                      searchQuery.trim()
-                        ? ` matching "${searchQuery.trim()}"`
-                        : selectedCategorySlug
-                          ? ` in ${categories.find((c) => c.slug === selectedCategorySlug)?.name ?? selectedCategorySlug}`
-                          : " available"
-                    }`}
+                {view.productsSection.subheading
+                  ? view.productsSection.subheading
+                  : productsLoading
+                    ? "Loading products..."
+                    : `${visibleProducts.length} product${visibleProducts.length !== 1 ? "s" : ""}${
+                        searchQuery.trim()
+                          ? ` matching "${searchQuery.trim()}"`
+                          : selectedCategorySlug
+                            ? ` in ${categories.find((c) => c.slug === selectedCategorySlug)?.name ?? selectedCategorySlug}`
+                            : " available"
+                      }`}
               </p>
             </div>
 
@@ -243,7 +247,7 @@ export default function StorePageContent({ store, products, productsLoading }: S
                       ? "border-transparent text-white"
                       : "bg-background hover:bg-muted",
                   )}
-                  style={!selectedCategorySlug ? { backgroundColor: view.primaryColor } : undefined}
+                  style={!selectedCategorySlug ? { backgroundColor: view.productsSection.accentColor || view.primaryColor } : undefined}
                 >
                   All
                 </button>
@@ -258,7 +262,7 @@ export default function StorePageContent({ store, products, productsLoading }: S
                         ? "border-transparent text-white"
                         : "bg-background hover:bg-muted",
                     )}
-                    style={selectedCategorySlug === cat.slug ? { backgroundColor: view.primaryColor } : undefined}
+                    style={selectedCategorySlug === cat.slug ? { backgroundColor: view.productsSection.accentColor || view.primaryColor } : undefined}
                   >
                     {cat.name}
                   </button>
@@ -312,7 +316,7 @@ export default function StorePageContent({ store, products, productsLoading }: S
                   key={product.id}
                   variant={view.theme.productCardStyle}
                   borderRadius={view.theme.borderRadius}
-                  accentColor={view.primaryColor}
+                  accentColor={view.productsSection.accentColor || view.primaryColor}
                   showRating={view.theme.showProductRating}
                   product={{
                     id:        product.id,

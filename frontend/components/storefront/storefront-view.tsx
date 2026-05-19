@@ -47,11 +47,35 @@ export type AnnouncementBar = {
   link: string
 }
 
+export type AboutTemplate =
+  | "split"
+  | "centered"
+  | "editorial"
+  | "image-overlay"
+  | "card"
+  | "polaroid"
+  | "minimal"
+
 export type AboutSection = {
   enabled: boolean
   heading: string
   body: string
   imageUrl: string
+  template: AboutTemplate
+  /** When true, the Split template renders text on the left and image on the right. Ignored by other templates. */
+  flip: boolean
+  /** Empty string = inherit from view.primaryColor. Used for kicker, underline, divider, etc. */
+  accentColor: string
+}
+
+// Lightweight customization for the Products grid section. Both fields are
+// optional — empty values fall back to the renderer's defaults (heading
+// "Products", subheading shows the dynamic count line).
+export type ProductsSection = {
+  heading: string
+  subheading: string
+  /** Empty = inherit from view.primaryColor. Used for product card prices, category chips, etc. */
+  accentColor: string
 }
 
 export type FooterColumn = {
@@ -230,14 +254,33 @@ export type HeroVariant = {
   overlayColor:   string   // hex color for the dark/tinted wash over hero media
   videoUrl:       string   // optional — looping video bg for templates that show one
   imageUrl:       string   // optional — still image bg for templates that show one (separate from store-card cover)
+  // Visibility toggles — let sellers hide hero text/buttons per their preference.
+  // Defaults are all true so existing stores look unchanged.
+  showStoreName:    boolean
+  showTagline:      boolean
+  showDescription:  boolean
+  showPrimaryCta:   boolean
+  showLogo:         boolean
+  // Per-section brand colors. Empty string means "inherit from view.primaryColor"
+  // (the legacy field still seeded on every store). When set, these override the
+  // hero's accent and cascade to all other sections that don't define their own.
+  primaryColor:     string
+  secondaryColor:   string
 }
 
 export const DEFAULT_HERO_VARIANT: HeroVariant = {
-  align:          "left",
-  overlayOpacity: 55,
-  overlayColor:   "#000000",
-  videoUrl:       "",
-  imageUrl:       "",
+  align:           "left",
+  overlayOpacity:  55,
+  overlayColor:    "#000000",
+  videoUrl:        "",
+  imageUrl:        "",
+  showStoreName:   true,
+  showTagline:     true,
+  showDescription: true,
+  showPrimaryCta:  true,
+  showLogo:        true,
+  primaryColor:    "",
+  secondaryColor:  "",
 }
 
 // Hex (#RRGGBB) → rgba(r,g,b,alpha). Tolerant: returns black if the hex is malformed.
@@ -262,8 +305,10 @@ export type TrustBadgeItem = {
 }
 
 export type TrustBadges = {
-  enabled: boolean
-  items:   TrustBadgeItem[]
+  enabled:     boolean
+  items:       TrustBadgeItem[]
+  /** Empty = inherit from view.primaryColor. Used for badge icon tint. */
+  accentColor: string
 }
 
 export const TRUST_BADGE_PRESETS: Record<TrustBadgeKey, { defaultLabel: string; defaultSublabel: string }> = {
@@ -278,12 +323,13 @@ export const TRUST_BADGE_PRESETS: Record<TrustBadgeKey, { defaultLabel: string; 
 }
 
 export const DEFAULT_TRUST_BADGES: TrustBadges = {
-  enabled: false,
+  enabled:     false,
   items: [
     { key: "free-shipping", label: TRUST_BADGE_PRESETS["free-shipping"].defaultLabel, sublabel: TRUST_BADGE_PRESETS["free-shipping"].defaultSublabel },
     { key: "returns",       label: TRUST_BADGE_PRESETS["returns"].defaultLabel,       sublabel: TRUST_BADGE_PRESETS["returns"].defaultSublabel       },
     { key: "secure",        label: TRUST_BADGE_PRESETS["secure"].defaultLabel,        sublabel: TRUST_BADGE_PRESETS["secure"].defaultSublabel        },
   ],
+  accentColor: "",
 }
 
 export type StorefrontView = {
@@ -317,9 +363,10 @@ export type StorefrontView = {
   bgColors: BgColors
 
   // sections
-  announcement: AnnouncementBar
-  aboutSection: AboutSection
-  trustBadges:  TrustBadges
+  announcement:    AnnouncementBar
+  aboutSection:    AboutSection
+  productsSection: ProductsSection
+  trustBadges:     TrustBadges
 
   // footer
   showFooter: boolean
@@ -359,10 +406,19 @@ export const DEFAULT_SECONDARY_CTA: CtaConfig = {
 }
 
 export const DEFAULT_ABOUT: AboutSection = {
-  enabled: false,
-  heading: "Our Story",
-  body: "",
-  imageUrl: "",
+  enabled:     false,
+  heading:     "Our Story",
+  body:        "",
+  imageUrl:    "",
+  template:    "split",
+  flip:        false,
+  accentColor: "",
+}
+
+export const DEFAULT_PRODUCTS_SECTION: ProductsSection = {
+  heading:     "",
+  subheading:  "",
+  accentColor: "",
 }
 
 export const DEFAULT_NEWSLETTER: Newsletter = {
@@ -430,11 +486,29 @@ function readSecondaryCta(hero: Record<string, unknown> | null | undefined): Cta
 
 function readAbout(hero: Record<string, unknown> | null | undefined): AboutSection {
   const a = obj(hero, "aboutSection") ?? {}
+  const tplRaw = str(a, "template")
+  const allowed: AboutTemplate[] = ["split", "centered", "editorial", "image-overlay", "card", "polaroid", "minimal"]
+  const template: AboutTemplate =
+    typeof tplRaw === "string" && (allowed as string[]).includes(tplRaw)
+      ? (tplRaw as AboutTemplate)
+      : DEFAULT_ABOUT.template
   return {
-    enabled:  bool(a, "enabled")  ?? DEFAULT_ABOUT.enabled,
-    heading:  str(a, "heading")   ?? DEFAULT_ABOUT.heading,
-    body:     str(a, "body")      ?? DEFAULT_ABOUT.body,
-    imageUrl: str(a, "imageUrl")  ?? DEFAULT_ABOUT.imageUrl,
+    enabled:     bool(a, "enabled")     ?? DEFAULT_ABOUT.enabled,
+    heading:     str(a, "heading")      ?? DEFAULT_ABOUT.heading,
+    body:        str(a, "body")         ?? DEFAULT_ABOUT.body,
+    imageUrl:    str(a, "imageUrl")     ?? DEFAULT_ABOUT.imageUrl,
+    template,
+    flip:        bool(a, "flip")        ?? DEFAULT_ABOUT.flip,
+    accentColor: str(a, "accentColor")  ?? "",
+  }
+}
+
+function readProductsSection(hero: Record<string, unknown> | null | undefined): ProductsSection {
+  const p = obj(hero, "productsSection") ?? {}
+  return {
+    heading:     str(p, "heading")     ?? DEFAULT_PRODUCTS_SECTION.heading,
+    subheading:  str(p, "subheading")  ?? DEFAULT_PRODUCTS_SECTION.subheading,
+    accentColor: str(p, "accentColor") ?? "",
   }
 }
 
@@ -545,12 +619,21 @@ function readHeroVariant(hero: Record<string, unknown> | null | undefined): Hero
     ? h.align
     : DEFAULT_HERO_VARIANT.align
   const op = typeof h.overlayOpacity === "number" ? h.overlayOpacity : DEFAULT_HERO_VARIANT.overlayOpacity
+  const bool = (key: string, fallback: boolean) =>
+    typeof h[key] === "boolean" ? (h[key] as boolean) : fallback
   return {
     align,
-    overlayOpacity: Math.max(0, Math.min(100, op)),
-    overlayColor:   str(h, "overlayColor") ?? DEFAULT_HERO_VARIANT.overlayColor,
-    videoUrl:       str(h, "videoUrl")     ?? "",
-    imageUrl:       str(h, "imageUrl")     ?? "",
+    overlayOpacity:  Math.max(0, Math.min(100, op)),
+    overlayColor:    str(h, "overlayColor") ?? DEFAULT_HERO_VARIANT.overlayColor,
+    videoUrl:        str(h, "videoUrl")     ?? "",
+    imageUrl:        str(h, "imageUrl")     ?? "",
+    showStoreName:   bool("showStoreName",   DEFAULT_HERO_VARIANT.showStoreName),
+    showTagline:     bool("showTagline",     DEFAULT_HERO_VARIANT.showTagline),
+    showDescription: bool("showDescription", DEFAULT_HERO_VARIANT.showDescription),
+    showPrimaryCta:  bool("showPrimaryCta",  DEFAULT_HERO_VARIANT.showPrimaryCta),
+    showLogo:        bool("showLogo",        DEFAULT_HERO_VARIANT.showLogo),
+    primaryColor:    str(h, "primaryColor")   ?? "",
+    secondaryColor:  str(h, "secondaryColor") ?? "",
   }
 }
 
@@ -575,8 +658,9 @@ function readTrustBadges(hero: Record<string, unknown> | null | undefined): Trus
         .filter((i): i is TrustBadgeItem => i !== null)
     : DEFAULT_TRUST_BADGES.items
   return {
-    enabled: bool(t, "enabled") ?? DEFAULT_TRUST_BADGES.enabled,
+    enabled:     bool(t, "enabled") ?? DEFAULT_TRUST_BADGES.enabled,
     items,
+    accentColor: str(t, "accentColor") ?? "",
   }
 }
 
@@ -585,6 +669,13 @@ export function storeToView(store: Store, opts: { ctaHref?: string } = {}): Stor
   const footer = (store.footer ?? {}) as Record<string, unknown>
 
   const ctaLink = str(hero, "ctaLink") ?? str(hero, "cta_link") ?? STOREFRONT_DEFAULTS.ctaLink
+  // Per-section colors take precedence over legacy top-level primaryColor/secondaryColor.
+  // The seller picks Hero's primary, which then becomes the brand color other
+  // sections fall back to. Old stores keep working because the legacy top-level
+  // value is still the final fallback if heroVariant colors are empty.
+  const heroVariant = readHeroVariant(hero)
+  const legacyPrimary   = str(hero, "primaryColor")   ?? STOREFRONT_DEFAULTS.primaryColor
+  const legacySecondary = str(hero, "secondaryColor") ?? STOREFRONT_DEFAULTS.secondaryColor
 
   return {
     storeName:       store.name,
@@ -597,17 +688,18 @@ export function storeToView(store: Store, opts: { ctaHref?: string } = {}): Stor
     ctaHref:         opts.ctaHref ?? ctaLink,
     secondaryCta:    readSecondaryCta(hero),
     template:        (str(hero, "template") as TemplateId)  ?? STOREFRONT_DEFAULTS.template,
-    primaryColor:    str(hero, "primaryColor")              ?? STOREFRONT_DEFAULTS.primaryColor,
-    secondaryColor:  str(hero, "secondaryColor")            ?? STOREFRONT_DEFAULTS.secondaryColor,
+    primaryColor:    heroVariant.primaryColor   || legacyPrimary,
+    secondaryColor:  heroVariant.secondaryColor || legacySecondary,
     fontFamily:      (str(hero, "fontFamily") as FontFamily)?? STOREFRONT_DEFAULTS.fontFamily,
     rtl:             bool(hero, "rtl")                      ?? STOREFRONT_DEFAULTS.rtl,
-    heroVariant:     readHeroVariant(hero),
+    heroVariant,
     nav:             readNav(hero),
     theme:           readTheme(hero),
     fonts:           readFonts(hero),
     bgColors:        readBgColors(hero),
     announcement:    readAnnouncement(hero),
     aboutSection:    readAbout(hero),
+    productsSection: readProductsSection(hero),
     trustBadges:     readTrustBadges(hero),
     showFooter:      bool(footer, "showFooter")             ?? STOREFRONT_DEFAULTS.showFooter,
     footerStyle:     ((s: unknown): FooterStyle => {
@@ -677,11 +769,263 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
   const fontClass = FONT_CLASS[view.fontFamily] ?? "font-sans"
   const tokens = themeTokens(view.theme)
   const bgStyle = view.bgColors.about ? { backgroundColor: view.bgColors.about } : undefined
+  // Section accent: per-section override → falls back to global brand color
+  const aboutAccent = a.accentColor || view.primaryColor
   const headingStyle: React.CSSProperties =
     view.fonts.headingFont && view.fonts.headingFont !== "system"
-      ? { color: view.primaryColor, fontFamily: fontFamily(view.fonts.headingFont) }
-      : { color: view.primaryColor }
+      ? { color: aboutAccent, fontFamily: fontFamily(view.fonts.headingFont) }
+      : { color: aboutAccent }
 
+  const heading = a.heading && (
+    <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
+      {a.heading}
+    </h2>
+  )
+  const image = a.imageUrl && (
+    <div className={cn("overflow-hidden aspect-[4/3] bg-muted shadow-sm", tokens.radius)}>
+      <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
+    </div>
+  )
+
+  // ── Image-overlay ── full-bleed bg image with overlay tint and centered text
+  if (a.template === "image-overlay") {
+    const hasMedia = !!a.imageUrl
+    return (
+      <section
+        id="about"
+        className="relative overflow-hidden border-y"
+        style={bgStyle}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        {hasMedia && (
+          <img
+            src={a.imageUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {!hasMedia && (
+          <div
+            className="absolute inset-0"
+            style={{ background: `linear-gradient(135deg,${aboutAccent},${view.secondaryColor})` }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/65" />
+        <div className={cn("relative container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          <div className="max-w-2xl mx-auto text-center space-y-5 text-white">
+            {a.heading && (
+              <h2
+                className={cn("text-3xl md:text-5xl font-bold leading-tight tracking-tight drop-shadow", fontClass)}
+                style={view.fonts.headingFont && view.fonts.headingFont !== "system" ? { fontFamily: fontFamily(view.fonts.headingFont) } : undefined}
+              >
+                {a.heading}
+              </h2>
+            )}
+            {a.body && (
+              <p className="text-base md:text-lg text-white/90 leading-relaxed whitespace-pre-line drop-shadow-sm">
+                {a.body}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <span className="h-px w-12 bg-white/60" />
+              <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
+              <span className="h-px w-12 bg-white/60" />
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Card ── content in a floating rounded card over a contrasting bg
+  if (a.template === "card") {
+    const surfaceBg = view.bgColors.about ? undefined : { background: `linear-gradient(135deg,${aboutAccent}10,${view.secondaryColor}12)` }
+    return (
+      <section
+        id="about"
+        className={cn("border-y", !bgStyle && !surfaceBg ? "bg-muted/20" : "")}
+        style={bgStyle ?? surfaceBg}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          <div className={cn(
+            "max-w-5xl mx-auto bg-background shadow-xl ring-1 ring-black/5 p-6 md:p-10",
+            tokens.radius,
+          )}>
+            <div className={cn("grid gap-8 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+              {a.imageUrl && !a.flip && image}
+              <div className="space-y-4">
+                {a.heading && (
+                  <div className="space-y-2">
+                    <span className="inline-block text-[10px] font-bold uppercase tracking-[0.25em] px-2.5 py-1 rounded-full" style={{ backgroundColor: `${aboutAccent}15`, color: aboutAccent }}>
+                      About
+                    </span>
+                    {heading}
+                  </div>
+                )}
+                {a.body && (
+                  <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+                )}
+              </div>
+              {a.imageUrl && a.flip && image}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Polaroid ── tilted image with a thick white border, beside the text
+  if (a.template === "polaroid") {
+    return (
+      <section
+        id="about"
+        className={cn("border-y", !bgStyle && "bg-muted/20")}
+        style={bgStyle}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          <div className={cn("grid gap-12 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+            {a.imageUrl && (
+              <div className={cn("flex", a.flip ? "md:order-2 justify-center md:justify-end" : "justify-center md:justify-start")}>
+                <div
+                  className="bg-white p-3 pb-10 shadow-2xl rotate-[-3deg] hover:rotate-0 transition-transform duration-500 max-w-sm w-full"
+                  style={{ boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05)" }}
+                >
+                  <img src={a.imageUrl} alt="" className="w-full aspect-square object-cover" />
+                </div>
+              </div>
+            )}
+            <div className="space-y-4">
+              {heading}
+              {a.body && (
+                <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Minimal ── text-only, large display typography. Image (if any) is a
+  // narrow top accent strip rather than the centerpiece.
+  if (a.template === "minimal") {
+    return (
+      <section
+        id="about"
+        className={cn("border-y", !bgStyle && "bg-muted/20")}
+        style={bgStyle}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          {a.imageUrl && (
+            <div className={cn("overflow-hidden aspect-[5/1] bg-muted mb-12 max-w-4xl mx-auto", tokens.radius)}>
+              <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="max-w-3xl mx-auto space-y-8">
+            <div className="flex items-center gap-4">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground">About</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            {a.heading && (
+              <h2
+                className={cn("text-4xl md:text-6xl font-bold leading-[1.05] tracking-tight text-center", fontClass)}
+                style={headingStyle}
+              >
+                {a.heading}
+              </h2>
+            )}
+            {a.body && (
+              <p className="text-lg md:text-xl text-muted-foreground leading-relaxed whitespace-pre-line text-center max-w-2xl mx-auto">
+                {a.body}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Editorial ── oversized italic body in a narrow column under a wide image
+  if (a.template === "editorial") {
+    return (
+      <section
+        id="about"
+        className={cn("border-y", !bgStyle && "bg-muted/20")}
+        style={bgStyle}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          {a.imageUrl && (
+            <div className={cn("overflow-hidden aspect-[21/9] bg-muted mb-10", tokens.radius)}>
+              <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            {a.heading && (
+              <p className="text-xs font-bold uppercase tracking-[0.35em]" style={{ color: aboutAccent }}>
+                {a.heading}
+              </p>
+            )}
+            {a.body && (
+              <p
+                className={cn("text-2xl md:text-3xl italic leading-snug text-foreground/80 whitespace-pre-line", fontClass)}
+                style={view.fonts.headingFont && view.fonts.headingFont !== "system" ? { fontFamily: fontFamily(view.fonts.headingFont) } : undefined}
+              >
+                {a.body}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <span className="h-px w-10" style={{ backgroundColor: aboutAccent }} />
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: aboutAccent }} />
+              <span className="h-px w-10" style={{ backgroundColor: aboutAccent }} />
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Centered ── narrow column, image above text, everything center-aligned
+  if (a.template === "centered") {
+    return (
+      <section
+        id="about"
+        className={cn("border-y", !bgStyle && "bg-muted/20")}
+        style={bgStyle}
+        dir={view.rtl ? "rtl" : "ltr"}
+      >
+        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            {a.imageUrl && (
+              <div className={cn("overflow-hidden aspect-[4/3] bg-muted mx-auto shadow-md max-w-md", tokens.radius)}>
+                <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            {a.heading && (
+              <div className="space-y-3">
+                <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
+                  {a.heading}
+                </h2>
+                <span
+                  className="block h-1 w-12 mx-auto rounded-full"
+                  style={{ backgroundColor: aboutAccent }}
+                />
+              </div>
+            )}
+            {a.body && (
+              <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+            )}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Split (default) ── image and text side-by-side; flip swaps the order
   return (
     <section
       id="about"
@@ -690,22 +1034,24 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
       dir={view.rtl ? "rtl" : "ltr"}
     >
       <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
-        <div className={cn("grid gap-10 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
-          {a.imageUrl && (
-            <div className={cn("overflow-hidden aspect-[4/3] bg-muted", tokens.radius)}>
-              <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-          <div className="space-y-4">
+        <div className={cn("grid gap-10 md:gap-14 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+          {a.imageUrl && !a.flip && image}
+          <div className="space-y-5">
             {a.heading && (
-              <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
-                {a.heading}
-              </h2>
+              <div className="space-y-3">
+                <span className="inline-block text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: aboutAccent }}>
+                  About
+                </span>
+                <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
+                  {a.heading}
+                </h2>
+              </div>
             )}
             {a.body && (
               <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
             )}
           </div>
+          {a.imageUrl && a.flip && image}
         </div>
       </div>
     </section>
@@ -717,21 +1063,9 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
 export function StorefrontMiniNav({ view }: { view: StorefrontView }) {
   return (
     <div className="border-b px-6 py-3 flex items-center justify-between bg-white" dir={view.rtl ? "rtl" : "ltr"}>
-      <div className="flex items-center gap-2">
-        {view.logoUrl ? (
-          <img src={view.logoUrl} alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
-        ) : (
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-            style={{ background: `linear-gradient(135deg,${view.primaryColor},${view.secondaryColor})` }}
-          >
-            {view.storeName.slice(0, 1).toUpperCase()}
-          </div>
-        )}
-        <span className="font-bold text-sm tracking-tight" style={{ color: view.primaryColor }}>
-          {view.storeName}
-        </span>
-      </div>
+      <span className="font-bold text-sm tracking-tight" style={{ color: view.primaryColor }}>
+        {view.storeName}
+      </span>
       <nav className="flex gap-5 text-xs text-muted-foreground">
         {(view.rtl
           ? ["منتجات", "عن المتجر", "تواصل"]
@@ -753,9 +1087,30 @@ const FONT_CLASS: Record<FontFamily, string> = {
   bold:    "font-sans font-black",
 }
 
-export function StorefrontHero({ view }: { view: StorefrontView }) {
+export function StorefrontHero(props: { view: StorefrontView }) {
+  // Wrapper carries a data attribute that pairs with a CSS rule in globals.css
+  // (`[data-sf-hero] :where(h1, h2, p):empty { display: none }`), so any text
+  // element whose interpolated value is hidden via a visibility toggle below
+  // collapses automatically without per-template edits.
+  return (
+    <div data-sf-hero>
+      <StorefrontHeroBody {...props} />
+    </div>
+  )
+}
+
+function StorefrontHeroBody({ view }: { view: StorefrontView }) {
   const fontClass = FONT_CLASS[view.fontFamily] ?? "font-sans"
-  const { storeName, tagline, description, ctaText, ctaHref, secondaryCta, primaryColor, secondaryColor, template, rtl, heroVariant } = view
+  const { ctaText, ctaHref, secondaryCta, template, rtl, heroVariant } = view
+  // Hero's per-section colors override the legacy view-level brand colors when set.
+  const primaryColor   = heroVariant.primaryColor   || view.primaryColor
+  const secondaryColor = heroVariant.secondaryColor || view.secondaryColor
+  // Apply visibility toggles: when a toggle is off, the corresponding value
+  // is blanked, and the CSS rule on `[data-sf-hero]` hides the resulting
+  // empty element so no vertical space leaks through.
+  const storeName   = heroVariant.showStoreName   ? view.storeName   : ""
+  const tagline     = heroVariant.showTagline     ? view.tagline     : ""
+  const description = heroVariant.showDescription ? view.description : ""
   // Hero background image is independent from the store-card cover (`view.heroImage`).
   // Templates that show a hero image use this dedicated field on heroVariant.
   const heroImage = heroVariant.imageUrl
@@ -768,7 +1123,10 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
       : undefined
 
   // Primary CTA — anchor when href provided, plain button otherwise (preview in builder).
+  // Returns null when the seller toggles off the primary button — keeps the CTA
+  // row collapsed if only the secondary is also off.
   const PrimaryCta = ({ className, style, label }: { className: string; style?: React.CSSProperties; label?: string }) => {
+    if (!heroVariant.showPrimaryCta) return null
     const text = label ?? ctaText
     return ctaHref
       ? <a href={ctaHref} className={className} style={style}>{text}</a>
@@ -800,25 +1158,22 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
     : align === "right" ? "justify-end"
     : "justify-start"
 
-  // Overlay opacity for templates that use bg image/video with dark wash.
+  // Overlay opacity for templates that use bg image/video.
   const overlayAlpha = heroVariant.overlayOpacity / 100
   const heroVideoUrl = heroVariant.videoUrl
+  // Effective overlay color — defaults to the brand color so the seller's
+  // opacity slider actually tints their image instead of just darkening it.
+  // The seller can still pick black or any other hex in the Hero overlay UI.
+  const overlayColor =
+    heroVariant.overlayColor && heroVariant.overlayColor !== "#000000"
+      ? heroVariant.overlayColor
+      : primaryColor
 
   // ── 1. Minimal ──
   if (template === "minimal") {
     return (
       <div dir={wrapDir} className="min-h-[480px] bg-white flex items-center justify-center px-10 py-16 text-center">
         <div className="max-w-lg space-y-6">
-          {view.logoUrl ? (
-            <img src={view.logoUrl} alt="" className="mx-auto w-16 h-16 rounded-2xl object-cover shadow-lg" />
-          ) : (
-            <div
-              className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg"
-              style={{ background: `linear-gradient(135deg,${primaryColor},${secondaryColor})` }}
-            >
-              {storeName.slice(0, 1).toUpperCase()}
-            </div>
-          )}
           <div className="space-y-3">
             <h1 className={cn("text-4xl font-bold leading-tight tracking-tight", fontClass)} style={{ ...headingStyle, color: primaryColor }}>
               {storeName}
@@ -983,18 +1338,17 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
   // ── 5. Cinematic ──
   if (template === "cinematic") {
     const hasMedia = !!(heroImage || heroVideoUrl)
-    const year = new Date().getFullYear()
     return (
       <div
         dir={wrapDir}
-        className={cn("min-h-[560px] md:min-h-[640px] relative flex items-center overflow-hidden", flexAlignClass)}
+        className={cn("min-h-[520px] md:min-h-[620px] relative flex items-center overflow-hidden", flexAlignClass)}
         style={{
           background: hasMedia
             ? undefined
-            : `linear-gradient(to bottom right,#0f172a,${primaryColor}35,#0f172a)`,
+            : `linear-gradient(135deg,#0f172a 0%,${primaryColor}55 50%,#0f172a 100%)`,
         }}
       >
-        {/* ── Background media ── */}
+        {/* Background media — slow Ken Burns zoom for still images */}
         {heroVideoUrl ? (
           <video
             src={heroVideoUrl}
@@ -1002,96 +1356,78 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : heroImage ? (
-          // Slow Ken Burns zoom on still images for cinematic motion.
           <div
             className="absolute inset-0 animate-[sf-kenburns_28s_ease-in-out_infinite_alternate]"
             style={{ background: `url(${heroImage}) center/cover no-repeat` }}
           />
         ) : null}
 
-        {/* ── Tinted color overlay (seller's overlayColor + opacity) ── */}
+        {/* Colored overlay — seller's overlay color tints the image. Defaults
+            to the brand color so the picture actually picks up the store's
+            identity instead of going dark grey. */}
         {hasMedia && (
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(to bottom, ${hexToRgba(heroVariant.overlayColor, overlayAlpha * 0.7)}, ${hexToRgba(heroVariant.overlayColor, overlayAlpha)})`,
+              background: `linear-gradient(160deg, ${hexToRgba(overlayColor, overlayAlpha * 0.55)} 0%, ${hexToRgba(overlayColor, overlayAlpha)} 100%)`,
+              mixBlendMode: "multiply",
             }}
           />
         )}
 
-        {/* ── Vignette: corners fall off into shadow for cinema feel ── */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%)" }}
-        />
+        {/* Bottom-fade for text legibility — always present so titles read
+            on any image. Stays neutral so it doesn't fight the brand overlay. */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
 
-        {/* ── Animated letterbox bars (slide in on mount) ── */}
-        <div className="absolute top-0 left-0 right-0 h-10 md:h-12 bg-black z-10 animate-[sf-letterbox-top_700ms_cubic-bezier(0.4,0,0.2,1)_both]" />
-        <div className="absolute bottom-0 left-0 right-0 h-10 md:h-12 bg-black z-10 animate-[sf-letterbox-bottom_700ms_cubic-bezier(0.4,0,0.2,1)_both]" />
-
-        {/* ── Soft brand glow ── */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div
-            className="w-[560px] h-[560px] rounded-full blur-[160px] opacity-30"
-            style={{ backgroundColor: primaryColor }}
-          />
-        </div>
-
-        {/* ── Content (fades up on mount) ── */}
+        {/* Content — slides up gently on mount */}
         <div
           className={cn(
-            "relative z-20 text-white px-6 md:px-10 py-20 md:py-28 space-y-7 max-w-2xl animate-[sf-fade-up_900ms_ease-out_both]",
+            "relative z-10 text-white px-6 md:px-12 py-20 md:py-24 space-y-6 max-w-2xl animate-[sf-fade-up_900ms_ease-out_both]",
             alignClass,
           )}
         >
-          {/* Kicker with leading dot */}
-          <div className={cn("flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.5em] text-white/65", rtl && "flex-row-reverse")}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
-            {rtl ? "مرحباً في" : "Welcome to"}
+          {/* Accent rule above title */}
+          <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
+            <span className="h-px w-12" style={{ backgroundColor: primaryColor }} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/85">
+              {rtl ? "مرحباً في" : "Welcome to"}
+            </span>
           </div>
 
-          {/* Title — bigger, tighter line-height for cinematic impact */}
           <h1
-            className={cn("text-5xl md:text-7xl font-extrabold text-white drop-shadow-2xl tracking-tight leading-[1.05]", fontClass)}
+            className={cn("text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] drop-shadow-2xl", fontClass)}
             style={headingStyle}
           >
             {storeName}
           </h1>
 
-          {/* Tagline */}
           {tagline && (
-            <p className="text-lg md:text-xl text-white/75 leading-relaxed max-w-xl">{tagline}</p>
+            <p className="text-lg md:text-xl text-white/85 leading-relaxed max-w-xl drop-shadow">{tagline}</p>
           )}
 
-          {/* CTAs */}
-          <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
+          {description && (
+            <p className="text-sm md:text-base text-white/65 leading-relaxed max-w-lg">{description}</p>
+          )}
+
+          <div className={cn("flex gap-3 pt-3", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
-              className="px-9 py-3.5 rounded-full text-sm font-bold text-white border border-white/25 hover:border-white/50 hover:bg-white/15 transition-all backdrop-blur-md inline-block"
-              style={{ backgroundColor: `${primaryColor}80` }}
+              className="px-9 py-3.5 rounded-full text-sm font-bold text-white shadow-2xl hover:scale-[1.03] transition-transform inline-block"
+              style={{ backgroundColor: primaryColor }}
             />
             <SecondaryCta
-              fallbackLabel=""
-              className="px-9 py-3.5 rounded-full text-sm font-bold text-white/70 hover:text-white transition-colors inline-block"
+              fallbackLabel={rtl ? "اكتشف" : "Discover"}
+              className="px-9 py-3.5 rounded-full text-sm font-semibold text-white border border-white/30 backdrop-blur-md hover:bg-white/10 hover:border-white/50 transition-all inline-block"
             />
-          </div>
-
-          {/* Editorial credit line — tiny, like a film slate */}
-          <div className={cn("flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-white/45 pt-3", rtl && "flex-row-reverse")}>
-            <div className="h-px w-10 bg-white/30" />
-            {rtl ? `مجموعة مميزة · ${year}` : `Featured Collection · ${year}`}
           </div>
         </div>
 
-        {/* ── Scroll cue (sits above the bottom letterbox bar) ── */}
+        {/* Scroll cue — minimal arrow, no extra label */}
         <a
           href={ctaHref ?? "#products"}
           aria-label={rtl ? "اسحب للأسفل" : "Scroll to discover"}
-          className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 text-white/50 hover:text-white/80 transition-colors animate-[sf-scroll-bounce_2s_ease-in-out_infinite]"
+          className="absolute bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full border border-white/30 backdrop-blur-md flex items-center justify-center text-white/70 hover:text-white hover:border-white/60 transition-colors animate-[sf-scroll-bounce_2.4s_ease-in-out_infinite]"
         >
-          <span className="text-[9px] font-bold uppercase tracking-[0.3em]">
-            {rtl ? "اسحب" : "Scroll"}
-          </span>
-          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M19 12l-7 7-7-7" />
           </svg>
         </a>
@@ -1120,12 +1456,6 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
             boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
           }}
         >
-          <div
-            className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold"
-            style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
-          >
-            {storeName.slice(0, 1).toUpperCase()}
-          </div>
           <h1 className={cn("text-4xl font-bold text-white leading-tight tracking-tight drop-shadow", fontClass)} style={headingStyle}>
             {storeName}
           </h1>
@@ -1370,7 +1700,7 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(to top, ${hexToRgba(heroVariant.overlayColor || "#000000", Math.max(overlayAlpha, 0.55))} 0%, ${hexToRgba(heroVariant.overlayColor || "#000000", overlayAlpha * 0.2)} 50%, transparent 100%)`,
+              background: `linear-gradient(to top, ${hexToRgba(overlayColor, Math.max(overlayAlpha, 0.55))} 0%, ${hexToRgba(overlayColor, overlayAlpha * 0.2)} 50%, transparent 100%)`,
             }}
           />
         )}
@@ -1438,7 +1768,7 @@ export function StorefrontHero({ view }: { view: StorefrontView }) {
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(to bottom, ${hexToRgba(heroVariant.overlayColor || "#000000", overlayAlpha * 0.4)}, ${hexToRgba(heroVariant.overlayColor || "#000000", Math.max(overlayAlpha, 0.5))})`,
+              background: `linear-gradient(to bottom, ${hexToRgba(overlayColor, overlayAlpha * 0.4)}, ${hexToRgba(overlayColor, Math.max(overlayAlpha, 0.5))})`,
             }}
           />
         )}
@@ -1565,19 +1895,7 @@ export function StorefrontFooter({ view, soukyHref = "/" }: { view: StorefrontVi
         <div className={cn("px-5 sm:px-8 py-10 md:py-12 grid gap-8 sm:gap-10 sm:grid-cols-2 lg:grid-cols-4", center && "text-center")}>
           {/* Brand + about + socials */}
           <div className={cn("space-y-4 lg:col-span-1", center && "flex flex-col items-center")}>
-            <div className={cn("flex items-center gap-2.5", rtl && "flex-row-reverse")}>
-              {view.logoUrl ? (
-                <img src={view.logoUrl} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-              ) : (
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  {storeName.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <span className="font-bold" style={{ color: theme.heading }}>{storeName}</span>
-            </div>
+            <span className="font-bold text-lg" style={{ color: theme.heading }}>{storeName}</span>
             {footerAbout && (
               <p className="text-sm leading-relaxed whitespace-pre-line">{footerAbout}</p>
             )}
@@ -1761,7 +2079,7 @@ export function StorefrontNav({
   onCartClick?: () => void
   cartCount?: number
 }) {
-  const { logoUrl, storeName, primaryColor, secondaryColor, nav, rtl, fonts } = view
+  const { storeName, primaryColor, nav, rtl, fonts } = view
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const hasLinks = nav.links.length > 0
 
@@ -1808,17 +2126,7 @@ export function StorefrontNav({
             <span>Soukly</span>
           </Link>
 
-          <a href="#top" className="flex items-center gap-2 min-w-0">
-            {logoUrl ? (
-              <img src={logoUrl} alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-sm shrink-0" />
-            ) : (
-              <div
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0"
-                style={{ background: `linear-gradient(135deg,${primaryColor},${secondaryColor})` }}
-              >
-                {storeName.slice(0, 1).toUpperCase()}
-              </div>
-            )}
+          <a href="#top" className="flex items-center min-w-0">
             <span
               className="font-bold text-sm sm:text-base tracking-tight truncate"
               style={{ color: primaryColor, fontFamily: fontFamily(fonts.headingFont) }}
@@ -1909,6 +2217,7 @@ export function StorefrontTrustBadges({ view }: { view: StorefrontView }) {
   const tokens = themeTokens(view.theme)
   const headingFamily = fontFamily(view.fonts.headingFont)
   const bgStyle = view.bgColors.products ? { backgroundColor: view.bgColors.products } : undefined
+  const trustAccent = t.accentColor || view.primaryColor
 
   return (
     <section className={cn("border-t border-b", !bgStyle && "bg-muted/20")} style={bgStyle} dir={view.rtl ? "rtl" : "ltr"}>
@@ -1921,7 +2230,7 @@ export function StorefrontTrustBadges({ view }: { view: StorefrontView }) {
             >
               <div
                 className={cn("w-11 h-11 flex items-center justify-center shrink-0", tokens.radius)}
-                style={{ backgroundColor: `${view.primaryColor}15`, color: view.primaryColor }}
+                style={{ backgroundColor: `${trustAccent}15`, color: trustAccent }}
               >
                 {TRUST_BADGE_ICON[badge.key]}
               </div>

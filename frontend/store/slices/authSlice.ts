@@ -17,32 +17,29 @@ interface AuthState {
   accessToken: string | null
 }
 
-function loadStoredAuth(): AuthState {
+function loadStoredUser(): AuthState {
   if (typeof window === "undefined") return { user: null, accessToken: null }
   try {
     const stored = localStorage.getItem("soukly_auth")
-    if (stored) return JSON.parse(stored)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed?.user) return { user: parsed.user, accessToken: null }
+    }
   } catch {}
   return { user: null, accessToken: null }
 }
 
 const authSlice = createSlice({
   name: "auth",
-  initialState: loadStoredAuth as () => AuthState,
+  initialState: loadStoredUser as () => AuthState,
   reducers: {
     setCredentials(state, action: PayloadAction<{ user: User; accessToken: string }>) {
       state.user = action.payload.user
       state.accessToken = action.payload.accessToken
-      localStorage.setItem(
-        "soukly_auth",
-        JSON.stringify({ user: action.payload.user, accessToken: action.payload.accessToken }),
-      )
+      localStorage.setItem("soukly_auth", JSON.stringify({ user: action.payload.user }))
     },
     updateToken(state, action: PayloadAction<string>) {
       state.accessToken = action.payload
-      if (state.user) {
-        localStorage.setItem("soukly_auth", JSON.stringify({ user: state.user, accessToken: action.payload }))
-      }
     },
     logout(state) {
       state.user = null

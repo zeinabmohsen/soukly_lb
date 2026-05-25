@@ -65,6 +65,24 @@ Product.init(
       type: DataTypes.JSONB,
       defaultValue: [],
     },
+    // Array of { name, hex, image_url? } — e.g.
+    //   [{ name: "Black", hex: "#0a0a0a", image_url: "https://..." }]
+    // Display-only swatches: selecting a colour doesn't change stock or SKU.
+    // If image_url is set, the product detail page swaps the hero image when
+    // that colour is picked.
+    colors: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
+    // Array of customizations the buyer can pick when ordering. Examples:
+    //   { type: "text",   label: "Engraving",       max_length: 30, required: false }
+    //   { type: "select", label: "Wood type",       options: ["Olive","Walnut","Oak"], required: true }
+    //   { type: "select", label: "Scent",           options: ["Cedar","Lavender","Vanilla"] }
+    // The selected values travel with the cart item and (later) the order.
+    customizations: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
     status: {
       type: DataTypes.ENUM("active", "draft", "out_of_stock"),
       defaultValue: "active",

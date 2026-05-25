@@ -15,7 +15,13 @@ const PUBLIC_STORE_WHERE = {
   subscription_status: { [Op.in]: LIVE_SUBSCRIPTION_STATUSES },
 };
 
-async function fetchAllStores({ limit, offset, search, categorySlug, location }) {
+const STORE_SORTS = {
+  popular: [["rating", "DESC"], ["created_at", "DESC"]],
+  rating:  [["rating", "DESC"], ["created_at", "DESC"]],
+  newest:  [["created_at", "DESC"]],
+};
+
+async function fetchAllStores({ limit, offset, search, categorySlug, location, sort }) {
   const where = { ...PUBLIC_STORE_WHERE };
 
   if (search) {
@@ -30,12 +36,13 @@ async function fetchAllStores({ limit, offset, search, categorySlug, location })
   }
 
   const categoryWhere = categorySlug ? { slug: categorySlug } : undefined;
+  const order = STORE_SORTS[sort] ?? STORE_SORTS.popular;
 
   const { rows: items, count: total } = await Store.findAndCountAll({
     where,
     limit,
     offset,
-    order: [["rating", "DESC"], ["created_at", "DESC"]],
+    order,
     include: [
       {
         model: GlobalCategory,

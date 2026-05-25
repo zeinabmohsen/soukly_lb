@@ -75,4 +75,57 @@ async function applyAddressesTable(sequelize) {
   console.log("[migrate] addresses table ensured");
 }
 
-module.exports = { applySubscriptionColumns, applySellerDraftColumn, applyAddressesTable };
+async function applyProductColorsColumn(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "colors" JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] products.colors ensured");
+}
+
+async function applyProductCustomizationsColumn(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "customizations" JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] products.customizations ensured");
+}
+
+async function applyPasswordResetsTable(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "password_resets" (
+       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+       "token_hash" VARCHAR(255) NOT NULL,
+       "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+       "used_at" TIMESTAMP WITH TIME ZONE,
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+     )`,
+    { type: QueryTypes.RAW },
+  );
+
+  await sequelize.query(
+    `CREATE INDEX IF NOT EXISTS "password_resets_user_id_idx" ON "password_resets"("user_id")`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] password_resets table ensured");
+}
+
+module.exports = {
+  applySubscriptionColumns,
+  applySellerDraftColumn,
+  applyAddressesTable,
+  applyProductColorsColumn,
+  applyProductCustomizationsColumn,
+  applyPasswordResetsTable,
+};

@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Search, ShoppingBag, ArrowLeft, Sparkles, X } from "lucide-react"
+import { Search, ShoppingBag, Sparkles, X } from "lucide-react"
 import { useCart } from "@/hooks/useCart"
 import { AdvancedSearch } from "@/components/advanced-search"
 import CartSidebar from "@/components/cart-sidebar"
@@ -53,7 +52,7 @@ export function MarketplaceFloatingActions({ view }: { view: StorefrontView }) {
           <div className="bg-background rounded-2xl shadow-2xl border p-3">
             <div className="flex items-center justify-between mb-2 px-1">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Search Soukly
+                Search
               </span>
               <button
                 onClick={() => setSearchOpen(false)}
@@ -106,30 +105,18 @@ export function MarketplaceFloatingActions({ view }: { view: StorefrontView }) {
               </span>
             )}
           </button>
-
-          <Link href="/" aria-label="Back to Soukly">
-            <span className="w-11 h-11 rounded-full bg-background border shadow-lg flex items-center justify-center hover:bg-muted transition-colors text-foreground">
-              <ArrowLeft className="w-4 h-4" />
-            </span>
-          </Link>
         </div>
 
-        {/* Trigger pill */}
+        {/* Trigger pill — icon only, no Soukly branding */}
         <button
           onClick={() => setExpanded((e) => !e)}
-          className={cn(
-            "h-11 px-4 rounded-full bg-foreground text-background shadow-lg flex items-center gap-2 hover:opacity-90 transition-all",
-            expanded && "rotate-0",
-          )}
-          aria-label={expanded ? "Hide marketplace actions" : "Show marketplace actions"}
+          className="relative h-11 w-11 rounded-full bg-foreground text-background shadow-lg flex items-center justify-center hover:opacity-90 transition-all"
+          aria-label={expanded ? "Hide actions" : "Show actions"}
         >
-          <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-semibold tracking-wide hidden sm:inline">
-            {expanded ? "Close" : "Soukly"}
-          </span>
+          {expanded ? <X className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
           {!expanded && totalItems > 0 && (
             <span
-              className="min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white"
+              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white"
               style={{ backgroundColor: view.primaryColor }}
             >
               {totalItems > 99 ? "99+" : totalItems}

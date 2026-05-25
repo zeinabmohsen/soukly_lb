@@ -71,10 +71,10 @@ export default function TopStoresSection() {
                     </div>
 
                     <div className="p-3 md:p-6">
-                      <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 group-hover:text-primary transition-colors line-clamp-1">
+                      <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 group-hover:text-primary transition-colors line-clamp-1 break-words">
                         {store.name}
                       </h3>
-                      <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4 line-clamp-2">
+                      <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4 line-clamp-1 md:line-clamp-2 min-h-[1.1rem] md:min-h-[2.75rem] break-words">
                         {store.description ?? "Explore our curated collection"}
                       </p>
 

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import { Package, MapPin, Calendar, Eye, X, Loader2 } from "lucide-react"
+import { Package, MapPin, Calendar, Eye, X, Loader2, Copy, Check } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -23,6 +23,32 @@ const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-purple-100 text-purple-700 border-purple-200",
   cancelled: "bg-red-100 text-red-700 border-red-200",
   pending: "bg-gray-100 text-gray-700 border-gray-200",
+}
+
+function OrderIdCopyButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(id)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // ignore — clipboard API may be unavailable
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+      title={copied ? "Copied!" : "Copy full order ID"}
+      aria-label="Copy order ID"
+    >
+      {copied ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
+    </button>
+  )
 }
 
 export default function OrdersPage() {
@@ -102,8 +128,11 @@ export default function OrdersPage() {
                 <Card key={order.id} className="hover:shadow-lg transition-shadow">
                   <CardHeader className="border-b">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-xl font-mono text-sm">{order.id.split("-")[0]}…</CardTitle>
+                      <div className="min-w-0">
+                        <CardTitle className="flex items-center gap-1.5 text-sm font-mono">
+                          <span title={order.id}>{order.id.split("-")[0]}…</span>
+                          <OrderIdCopyButton id={order.id} />
+                        </CardTitle>
                         <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />

@@ -136,7 +136,7 @@ async function fetchSellerProducts(storeId, { limit, offset, search, status, cat
 }
 
 // ── Seller: create ────────────────────────────────────────────────────────────
-async function createProduct({ store_id, store_category_id, name, slug, description, price, compare_at_price, stock, sku, images, features, status, is_featured }) {
+async function createProduct({ store_id, store_category_id, name, slug, description, price, compare_at_price, stock, sku, images, features, colors, customizations, status, is_featured }) {
   return Product.create({
     store_id,
     store_category_id: store_category_id || null,
@@ -149,6 +149,8 @@ async function createProduct({ store_id, store_category_id, name, slug, descript
     sku: sku || null,
     images: images || [],
     features: features || [],
+    colors: colors || [],
+    customizations: customizations || [],
     status: status || "active",
     is_featured: is_featured || false,
   });
@@ -159,7 +161,7 @@ async function updateProduct(id, storeId, data) {
   const product = await Product.findOne({ where: { id, store_id: storeId } });
   if (!product) return null;
 
-  const allowed = ["store_category_id", "name", "description", "price", "compare_at_price", "stock", "sku", "images", "features", "status", "is_featured"];
+  const allowed = ["store_category_id", "name", "description", "price", "compare_at_price", "stock", "sku", "images", "features", "colors", "customizations", "status", "is_featured"];
   const updates = {};
   for (const key of allowed) {
     if (data[key] !== undefined) updates[key] = data[key];

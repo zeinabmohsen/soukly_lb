@@ -1,5 +1,6 @@
-const User          = require("./User");
-const Session       = require("./Session");
+const User           = require("./User");
+const Session        = require("./Session");
+const PasswordReset  = require("./PasswordReset");
 const GlobalCategory = require("./GlobalCategory");
 const Store         = require("./Store");
 const StoreCategory = require("./StoreCategory");
@@ -14,6 +15,9 @@ const Address       = require("./Address");
 // ── Auth ──────────────────────────────────────────────────────────────────────
 User.hasMany(Session,   { foreignKey: "user_id", onDelete: "CASCADE" });
 Session.belongsTo(User, { foreignKey: "user_id" });
+
+User.hasMany(PasswordReset,   { foreignKey: "user_id", onDelete: "CASCADE" });
+PasswordReset.belongsTo(User, { foreignKey: "user_id" });
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 User.hasOne(Store,    { foreignKey: "owner_id", onDelete: "CASCADE" });
@@ -77,7 +81,7 @@ User.hasMany(Address,    { foreignKey: "user_id", onDelete: "CASCADE" });
 Address.belongsTo(User,  { foreignKey: "user_id" });
 
 module.exports = {
-  User, Session, GlobalCategory,
+  User, Session, PasswordReset, GlobalCategory,
   Store, StoreCategory,
   Product,
   Order, OrderItem,

@@ -26,6 +26,7 @@ export interface WishlistEntry {
     images: { url: string; alt?: string }[]
     status: string
     rating: number
+    stock: number
     store_id: string
     store?: { id: string; name: string; slug: string; logo_url: string | null }
     category?: { id: string; name: string; slug: string }

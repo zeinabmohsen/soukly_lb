@@ -30,6 +30,13 @@ const globalError = (err, req, res, next) => {
     message: err.message || "Internal Server Error",
   };
 
+  // Forward structured error fields so the client can act on them (e.g. show
+  // per-item stock conflicts, re-display validation errors). Only fields we
+  // explicitly attach in services — never the raw err object in production.
+  if (err.code) body.code = err.code;
+  if (Array.isArray(err.items)) body.items = err.items;
+  if (Array.isArray(err.errors)) body.errors = err.errors;
+
   if (!isProd) {
     body.err = err;
     body.stack = err.stack;

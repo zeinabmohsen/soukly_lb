@@ -1,12 +1,11 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import Navbar from "@/components/navbar"
 import { AuthLayout } from "@/components/shared/auth-layout"
 import { InlineAuth } from "@/components/inline-auth"
 
 export default function SignupClient() {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const redirectParam = searchParams.get("redirect")
@@ -25,15 +24,11 @@ export default function SignupClient() {
         defaultMode="signup"
         bare
         onSuccess={({ user }) => {
-          if (user.is_admin) {
-            router.push("/admin/dashboard")
-          } else if (user.is_seller && user.seller_status === "approved") {
-            router.push("/seller/dashboard")
-          } else if (safeRedirect) {
-            router.push(safeRedirect)
-          } else {
-            router.push("/marketplace")
-          }
+          let dest = "/marketplace"
+          if (user.is_admin) dest = "/admin/dashboard"
+          else if (user.is_seller && user.seller_status === "approved") dest = "/seller/dashboard"
+          else if (safeRedirect) dest = safeRedirect
+          window.location.assign(dest)
         }}
       />
     </AuthLayout>

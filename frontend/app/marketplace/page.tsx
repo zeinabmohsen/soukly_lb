@@ -50,17 +50,18 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     setOffset(0)
-  }, [debouncedSearch, selectedCategorySlug, selectedLocation])
+  }, [debouncedSearch, selectedCategorySlug, selectedLocation, sortBy])
 
   const queryParams = useMemo(
     () => ({
       search: debouncedSearch || undefined,
       category: selectedCategorySlug || undefined,
       location: selectedLocation !== "All Locations" ? selectedLocation : undefined,
+      sort: sortBy as "popular" | "rating" | "newest",
       limit: PAGE_SIZE,
       offset,
     }),
-    [debouncedSearch, selectedCategorySlug, selectedLocation, offset],
+    [debouncedSearch, selectedCategorySlug, selectedLocation, sortBy, offset],
   )
 
   const { data, isLoading, isFetching } = useGetStoresQuery(queryParams)
@@ -73,24 +74,12 @@ export default function MarketplacePage() {
   }, [categories, selectedCategorySlug])
 
   const filteredStores = useMemo(() => {
-    const stores = apiStores.filter((store) => {
+    return apiStores.filter((store) => {
       const matchesRating = store.rating >= ratingFilter[0]
       const matchesVerified = !verifiedOnly || store.is_approved
       return matchesRating && matchesVerified
     })
-
-    return [...stores].sort((a, b) => {
-      switch (sortBy) {
-        case "rating":
-          return b.rating - a.rating
-        case "newest":
-          return 0
-        case "popular":
-        default:
-          return b.rating - a.rating
-      }
-    })
-  }, [apiStores, ratingFilter, verifiedOnly, sortBy])
+  }, [apiStores, ratingFilter, verifiedOnly])
 
   const scrollToStores = () => {
     storesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -347,10 +336,10 @@ export default function MarketplacePage() {
                         </div>
 
                         <div className="p-3 md:p-6 flex-1 flex flex-col">
-                          <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 group-hover:text-primary transition-colors line-clamp-1">
+                          <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 group-hover:text-primary transition-colors line-clamp-1 break-words">
                             {store.name}
                           </h3>
-                          <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4 line-clamp-2 min-h-[2.5rem] md:min-h-[2.75rem]">
+                          <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-4 line-clamp-1 md:line-clamp-2 min-h-[1.1rem] md:min-h-[2.75rem] break-words">
                             {store.description ?? "Explore our curated collection"}
                           </p>
 

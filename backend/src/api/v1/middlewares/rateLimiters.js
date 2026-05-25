@@ -21,4 +21,15 @@ const refreshLimiter = rateLimit({
   message: { message: "Too many refresh attempts." },
 });
 
-module.exports = { authLimiter, refreshLimiter };
+// Password reset endpoints are unauthenticated and trigger email sends. Keep
+// the ceiling low to prevent abuse (spamming an inbox, enumerating users via
+// timing), but generous enough that a legit user can retry a typo.
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many password reset attempts. Please try again later." },
+});
+
+module.exports = { authLimiter, refreshLimiter, passwordResetLimiter };

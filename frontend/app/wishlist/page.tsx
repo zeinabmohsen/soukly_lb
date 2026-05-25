@@ -80,6 +80,7 @@ export default function WishlistPage() {
       image: p.images?.[0]?.url ?? "/placeholder.svg",
       storeId: p.store_id,
       storeName: p.store?.name ?? "",
+      stock: p.stock,
     })
     toast({ title: "Added to cart!", description: `${p.name} has been added to your cart.` })
   }

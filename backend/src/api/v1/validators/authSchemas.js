@@ -25,4 +25,13 @@ const loginSchema = z.object({
   password: z.string({ required_error: "password is required" }).min(1, "password is required"),
 });
 
-module.exports = { registerSchema, loginSchema };
+const forgotPasswordSchema = z.object({
+  email: z.string({ required_error: "email is required" }).trim().toLowerCase().email("invalid email"),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string({ required_error: "token is required" }).min(10, "invalid token"),
+  password: passwordSchema,
+});
+
+module.exports = { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema };

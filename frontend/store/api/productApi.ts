@@ -8,6 +8,23 @@ import {
   paginatedForceRefetch,
 } from "./_normalize"
 
+export type Customization =
+  | {
+      type: "text"
+      label: string
+      help?: string
+      required?: boolean
+      max_length?: number
+      placeholder?: string
+    }
+  | {
+      type: "select"
+      label: string
+      help?: string
+      required?: boolean
+      options: string[]
+    }
+
 export interface Product {
   id: string
   store_id: string
@@ -21,6 +38,8 @@ export interface Product {
   sku: string | null
   images: { url: string; alt?: string }[]
   features: { label: string; value?: string }[]
+  colors: { name: string; hex: string; image_url?: string }[]
+  customizations: Customization[]
   status: "active" | "draft" | "out_of_stock"
   is_featured: boolean
   rating: number

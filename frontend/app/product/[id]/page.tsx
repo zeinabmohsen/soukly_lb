@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
@@ -29,6 +32,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const { data: product, isLoading, isError } = useGetProductByIdQuery(id)
   const [selectedImage, setSelectedImage] = useState(0)
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  const [customizationValues, setCustomizationValues] = useState<Record<string, string>>({})
   const [quantity, setQuantity] = useState(1)
   const [copied, setCopied] = useState(false)
   const [reviewRating, setReviewRating] = useState(0)
@@ -58,18 +63,36 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const inWishlist = product ? (wishlistData?.data?.some((e) => e.product_id === product.id) ?? false) : false
   const inStock = product ? product.status !== "out_of_stock" && product.stock > 0 : false
   const images = product?.images ?? []
-  const mainImage = images[selectedImage]?.url ?? "/placeholder.svg"
+
+  // If the selected colour has its own image_url, that takes over as the hero
+  // image — the buyer sees the product in the colour they picked.
+  const colorImage = product?.colors?.find((c) => c.name === selectedColor)?.image_url
+  const mainImage = colorImage ?? images[selectedImage]?.url ?? "/placeholder.svg"
+
+  // Required customizations must be filled before Add to Cart enables.
+  const customizations = product?.customizations ?? []
+  const missingRequired = customizations.some(
+    (c) => c.required && !(customizationValues[c.label]?.trim()),
+  )
 
   const handleAddToCart = () => {
     if (!product) return
+    if (missingRequired) {
+      toast({ title: "Please fill in required options", variant: "destructive" })
+      return
+    }
+    const colorObj = product.colors?.find((c) => c.name === selectedColor)
     for (let i = 0; i < quantity; i++) {
       addItem({
         id:        product.id,
         name:      product.name,
         price:     product.price,
-        image:     images[0]?.url ?? "/placeholder.svg",
+        image:     colorObj?.image_url ?? images[0]?.url ?? "/placeholder.svg",
         storeId:   product.store_id,
         storeName: product.store?.name ?? "",
+        stock:     product.stock,
+        selected_color: colorObj ? { name: colorObj.name, hex: colorObj.hex } : undefined,
+        customization_values: Object.keys(customizationValues).length > 0 ? customizationValues : undefined,
       })
     }
     toast({ title: "Added to cart", description: `${quantity}× ${product.name} added to your cart.` })
@@ -267,6 +290,85 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               </div>
             )}
 
+            {product.colors?.length > 0 && (
+              <div className="space-y-2.5">
+                <div className="flex items-baseline gap-2">
+                  <h3 className="font-semibold">Color</h3>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedColor ?? product.colors[0].name}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((c) => {
+                    const active = (selectedColor ?? product.colors[0].name) === c.name
+                    return (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => setSelectedColor(c.name)}
+                        title={c.name}
+                        aria-label={`Select colour ${c.name}`}
+                        className={cn(
+                          "relative w-9 h-9 rounded-full ring-1 ring-black/15 shadow-sm transition-all",
+                          "hover:scale-110 active:scale-95",
+                          active && "ring-2 ring-offset-2 ring-primary",
+                        )}
+                        style={{ backgroundColor: c.hex }}
+                      >
+                        {active && (
+                          <Check className="w-4 h-4 text-white absolute inset-0 m-auto drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {customizations.length > 0 && (
+              <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <h3 className="font-semibold text-amber-900 dark:text-amber-200">Personalise this item</h3>
+                </div>
+                <div className="space-y-3">
+                  {customizations.map((c) => {
+                    const value = customizationValues[c.label] ?? ""
+                    const setValue = (v: string) =>
+                      setCustomizationValues((prev) => ({ ...prev, [c.label]: v }))
+                    return (
+                      <div key={c.label} className="space-y-1">
+                        <label className="text-sm font-medium flex items-center gap-1">
+                          {c.label}
+                          {c.required && <span className="text-destructive">*</span>}
+                          {c.help && <span className="text-xs text-muted-foreground font-normal">— {c.help}</span>}
+                        </label>
+                        {c.type === "text" ? (
+                          <Input
+                            value={value}
+                            onChange={(e) => setValue(e.target.value)}
+                            placeholder={c.placeholder ?? "Enter your text"}
+                            maxLength={c.max_length}
+                          />
+                        ) : (
+                          <Select value={value} onValueChange={setValue}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {c.options.map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <Separator />
 
             {/* Quantity + Add to Cart */}
@@ -289,8 +391,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 <Button
                   className="flex-1 gap-2"
                   size="lg"
-                  disabled={!inStock}
+                  disabled={!inStock || missingRequired}
                   onClick={handleAddToCart}
+                  title={missingRequired ? "Please fill in required options" : undefined}
                 >
                   <ShoppingCart className="w-5 h-5" />
                   {inStock ? "Add to Cart" : "Out of Stock"}
@@ -331,14 +434,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 <ProductCard
                   key={p.id}
                   product={{
-                    id:        p.id,
-                    name:      p.name,
-                    price:     p.price,
-                    image:     p.images?.[0]?.url,
-                    rating:    p.rating,
-                    inStock:   p.status !== "out_of_stock" && p.stock > 0,
-                    storeId:   p.store_id,
-                    storeName: product.store?.name ?? "",
+                    id:           p.id,
+                    name:         p.name,
+                    price:        p.price,
+                    image:        p.images?.[0]?.url,
+                    rating:       p.rating,
+                    inStock:      p.status !== "out_of_stock" && p.stock > 0,
+                    storeId:      p.store_id,
+                    storeName:    product.store?.name ?? "",
+                    colors:       p.colors,
+                    customizable: (p.customizations?.length ?? 0) > 0,
                   }}
                 />
               ))}

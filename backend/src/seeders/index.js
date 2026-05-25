@@ -3,7 +3,14 @@ const sequelize = require("../config/database");
 const { GlobalCategory, User, Store, StoreCategory, Product } = require("../api/v1/models");
 const { seedGlobalCategories } = require("./globalCategories");
 const { seedSampleData } = require("./sampleData");
-const { applySubscriptionColumns, applySellerDraftColumn, applyAddressesTable } = require("./migrations");
+const {
+  applySubscriptionColumns,
+  applySellerDraftColumn,
+  applyAddressesTable,
+  applyProductColorsColumn,
+  applyProductCustomizationsColumn,
+  applyPasswordResetsTable,
+} = require("./migrations");
 
 async function runSeeds() {
   await sequelize.authenticate();
@@ -17,6 +24,9 @@ async function runSeeds() {
   await applySubscriptionColumns(sequelize);
   await applySellerDraftColumn(sequelize);
   await applyAddressesTable(sequelize);
+  await applyProductColorsColumn(sequelize);
+  await applyProductCustomizationsColumn(sequelize);
+  await applyPasswordResetsTable(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

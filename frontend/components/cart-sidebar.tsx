@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { X, Plus, Minus, Trash2, ShoppingBag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/hooks/useCart"
@@ -63,20 +64,43 @@ export default function CartSidebar({
               <div className="space-y-4">
                 {items.map((item) => (
                   <div
-                    key={item.id}
+                    key={item.line_id}
                     className="flex gap-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors bg-card"
                   >
-                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                    <Link
+                      href={`/product/${item.id}`}
+                      onClick={onClose}
+                      className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 block"
+                    >
                       <img
                         src={item.image || "/placeholder.svg"}
                         alt={item.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover hover:scale-105 transition-transform"
                       />
-                    </div>
+                    </Link>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold mb-1 truncate">{item.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{item.storeName}</p>
+                      <Link
+                        href={`/product/${item.id}`}
+                        onClick={onClose}
+                        className="block hover:text-primary transition-colors"
+                      >
+                        <h3 className="font-semibold mb-1 truncate">{item.name}</h3>
+                      </Link>
+                      <p className="text-sm text-muted-foreground mb-1">{item.storeName}</p>
+                      {(item.selected_color || item.customization_values) && (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-2 text-[11px] text-muted-foreground">
+                          {item.selected_color && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full ring-1 ring-black/15" style={{ backgroundColor: item.selected_color.hex }} />
+                              {item.selected_color.name}
+                            </span>
+                          )}
+                          {item.customization_values && Object.entries(item.customization_values).map(([k, v]) => (
+                            <span key={k} className="truncate"><span className="font-medium">{k}:</span> {v}</span>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-primary">${item.price}</span>
 
@@ -85,7 +109,7 @@ export default function CartSidebar({
                             size="icon"
                             variant="outline"
                             className="h-8 w-8 rounded-full bg-transparent"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.line_id, item.quantity - 1)}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
@@ -94,7 +118,9 @@ export default function CartSidebar({
                             size="icon"
                             variant="outline"
                             className="h-8 w-8 rounded-full bg-transparent"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.line_id, item.quantity + 1)}
+                            disabled={typeof item.stock === "number" && item.quantity >= item.stock}
+                            title={typeof item.stock === "number" && item.quantity >= item.stock ? "Max stock reached" : undefined}
                           >
                             <Plus className="w-3 h-3" />
                           </Button>
@@ -106,7 +132,7 @@ export default function CartSidebar({
                       size="icon"
                       variant="ghost"
                       className="text-destructive hover:bg-destructive/10 rounded-full"
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeItem(item.line_id)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

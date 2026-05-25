@@ -29,8 +29,11 @@ interface ProductCardProps {
     image?: string
     rating?: number
     inStock?: boolean
+    stock?: number
     storeId?: string
     storeName?: string
+    colors?: { name: string; hex: string }[]
+    customizable?: boolean
   }
   showAddToCart?: boolean
   showRating?: boolean
@@ -38,6 +41,36 @@ interface ProductCardProps {
   variant?: ProductCardVariant
   borderRadius?: "sharp" | "rounded" | "pill"
   accentColor?: string
+}
+
+function CustomizableBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/30">
+      ✦ Customizable
+    </span>
+  )
+}
+
+function ColorSwatchRow({ colors, max = 5 }: { colors: { name: string; hex: string }[]; max?: number }) {
+  if (!colors?.length) return null
+  const shown = colors.slice(0, max)
+  const remaining = colors.length - shown.length
+  return (
+    <div className="flex items-center gap-1.5">
+      {shown.map((c) => (
+        <span
+          key={c.name}
+          title={c.name}
+          aria-label={c.name}
+          className="w-3.5 h-3.5 rounded-full ring-1 ring-black/15 shadow-sm"
+          style={{ backgroundColor: c.hex }}
+        />
+      ))}
+      {remaining > 0 && (
+        <span className="text-[11px] text-muted-foreground font-medium ml-0.5">+{remaining}</span>
+      )}
+    </div>
+  )
 }
 
 export function ProductCard({ product, showAddToCart = true, showRating = true, className, variant = "standard", borderRadius, accentColor }: ProductCardProps) {
@@ -63,6 +96,7 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
       image: product.image ?? "/placeholder.svg",
       storeId: product.storeId ?? "",
       storeName: product.storeName ?? "",
+      stock: product.stock,
     })
     toast({ title: "Added to cart", description: `${product.name} has been added to your cart.` })
   }
@@ -107,6 +141,7 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
         "group relative overflow-hidden border border-border/60 bg-card",
         "shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-border",
         "transition-all duration-300 ease-out",
+        "h-full flex flex-col",
         radiusClass,
         className,
       )}>
@@ -123,6 +158,9 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
                 <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-semibold">Out of Stock</Badge>
               </div>
             )}
+            {product.customizable && product.inStock !== false && (
+              <div className="absolute top-2 left-2"><CustomizableBadge /></div>
+            )}
             <button
               onClick={handleToggleWishlist}
               disabled={isMutating}
@@ -137,13 +175,18 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
             </button>
           </div>
         </Link>
-        <div className="px-3 pt-1 pb-3 space-y-1.5">
+        <div className="px-3 pt-1 pb-3 flex-1 flex flex-col gap-1.5">
           <Link href={`/product/${product.id}`}>
             <h3 className="font-medium text-sm leading-snug tracking-tight line-clamp-1 hover:text-primary transition-colors">
               {product.name}
             </h3>
           </Link>
-          <div className="flex items-center justify-between gap-2">
+          <div className="min-h-[14px]">
+            {product.colors && product.colors.length > 0 && (
+              <ColorSwatchRow colors={product.colors} max={4} />
+            )}
+          </div>
+          <div className="mt-auto flex items-center justify-between gap-2">
             <span
               className="text-base font-bold tabular-nums tracking-tight"
               style={accentColor ? { color: accentColor } : undefined}
@@ -163,6 +206,7 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
       <Card className={cn(
         "group overflow-hidden border-0 bg-transparent shadow-none",
         "transition-all duration-500 ease-out",
+        "h-full flex flex-col",
         radiusClass,
         className,
       )}>
@@ -184,6 +228,9 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
               <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
                 <Badge variant="secondary" className="uppercase tracking-wider text-xs font-semibold">Out of Stock</Badge>
               </div>
+            )}
+            {product.customizable && product.inStock !== false && (
+              <div className="absolute top-4 left-4"><CustomizableBadge /></div>
             )}
             <button
               onClick={handleToggleWishlist}
@@ -207,10 +254,13 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
               <h3 className="font-bold text-lg leading-tight tracking-tight mb-1.5 line-clamp-2 [text-shadow:_0_1px_8px_rgb(0_0_0_/_40%)]">
                 {product.name}
               </h3>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-2xl font-extrabold tabular-nums tracking-tight [text-shadow:_0_1px_8px_rgb(0_0_0_/_40%)]">
                   {formattedPrice}
                 </span>
+                {product.colors && product.colors.length > 0 && (
+                  <ColorSwatchRow colors={product.colors} max={4} />
+                )}
               </div>
             </div>
           </div>
@@ -239,6 +289,7 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
       "group relative overflow-hidden border border-border/60 bg-card",
       "shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-border",
       "transition-all duration-300 ease-out",
+      "h-full flex flex-col",
       radiusClass,
       className,
     )}>
@@ -254,6 +305,9 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
             <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
               <Badge variant="secondary" className="uppercase tracking-wider text-xs font-semibold">Out of Stock</Badge>
             </div>
+          )}
+          {product.customizable && product.inStock !== false && (
+            <div className="absolute top-3 left-3"><CustomizableBadge /></div>
           )}
           <button
             onClick={handleToggleWishlist}
@@ -276,33 +330,40 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
         </div>
       </Link>
 
-      <div className="px-4 pt-1 pb-4 space-y-2.5">
+      <div className="px-4 pt-1 pb-4 flex-1 flex flex-col gap-2.5">
         <Link href={`/product/${product.id}`}>
           <h3 className="font-semibold text-base leading-snug tracking-tight line-clamp-2 group-hover:text-primary transition-colors cursor-pointer min-h-[2.6rem]">
             {product.name}
           </h3>
         </Link>
-        <div className="flex items-end justify-between gap-2">
-          <span
-            className="text-2xl font-bold tabular-nums tracking-tight leading-none"
-            style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}
-          >
-            {formattedPrice}
-          </span>
-          {showRating && product.rating && <StarRating rating={product.rating} size="sm" showValue />}
+        <div className="min-h-[16px]">
+          {product.colors && product.colors.length > 0 && (
+            <ColorSwatchRow colors={product.colors} max={5} />
+          )}
         </div>
-        {showAddToCart && (
-          <Button
-            className="w-full gap-2 font-semibold mt-1"
-            disabled={product.inStock === false}
-            onClick={handleAddToCart}
-            size="sm"
-            style={accentColor ? { backgroundColor: accentColor } : undefined}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            {product.inStock === false ? "Out of Stock" : "Add to Cart"}
-          </Button>
-        )}
+        <div className="mt-auto space-y-2.5">
+          <div className="flex items-end justify-between gap-2">
+            <span
+              className="text-2xl font-bold tabular-nums tracking-tight leading-none"
+              style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}
+            >
+              {formattedPrice}
+            </span>
+            {showRating && product.rating && <StarRating rating={product.rating} size="sm" showValue />}
+          </div>
+          {showAddToCart && (
+            <Button
+              className="w-full gap-2 font-semibold"
+              disabled={product.inStock === false}
+              onClick={handleAddToCart}
+              size="sm"
+              style={accentColor ? { backgroundColor: accentColor } : undefined}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {product.inStock === false ? "Out of Stock" : "Add to Cart"}
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   )

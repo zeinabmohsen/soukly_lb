@@ -58,7 +58,7 @@ export const storeApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getStores: builder.query<
       PaginatedStores,
-      { search?: string; category?: string; location?: string; limit?: number; offset?: number } | void
+      { search?: string; category?: string; location?: string; sort?: "popular" | "rating" | "newest"; limit?: number; offset?: number } | void
     >({
       query: (params) => ({ url: "/stores", params: params ?? {} }),
       transformResponse: (res: PaginatedStores) => numerifyPaginated(res, STORE_NUM_FIELDS),

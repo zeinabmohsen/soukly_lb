@@ -275,7 +275,15 @@ export function InlineAuth({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ia-login-password" className="text-sm">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ia-login-password" className="text-sm">Password</Label>
+                <a
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Forgot password?
+                </a>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input

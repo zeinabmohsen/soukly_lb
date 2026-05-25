@@ -87,7 +87,7 @@ const createMyProduct = asyncHandler(async (req, res) => {
 
   const {
     store_category_id, name, description, price,
-    compare_at_price, stock, sku, images, features, status, is_featured,
+    compare_at_price, stock, sku, images, features, colors, customizations, status, is_featured,
   } = req.body;
 
   if (!name || price === undefined) {
@@ -105,6 +105,8 @@ const createMyProduct = asyncHandler(async (req, res) => {
     sku,
     images,
     features,
+    colors,
+    customizations,
     status,
     is_featured,
   });

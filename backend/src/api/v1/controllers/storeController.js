@@ -21,8 +21,9 @@ const getAllStores = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const categorySlug = req.query.category || null;
   const location = req.query.location || null;
+  const sort = typeof req.query.sort === "string" ? req.query.sort : null;
 
-  const { items, total } = await fetchAllStores({ limit, offset, search, categorySlug, location });
+  const { items, total } = await fetchAllStores({ limit, offset, search, categorySlug, location, sort });
 
   res.status(200).json({
     data: items,

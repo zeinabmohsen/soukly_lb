@@ -1,14 +1,17 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const { Op } = require("sequelize");
 const asyncHandler = require("../../../utils/asyncHandler");
-const { User, Session } = require("../models");
+const { User, Session, PasswordReset } = require("../models");
 const { createUser: createUserService } = require("../services/userService");
 const { jwtSecret } = require("../../../config");
+const { sendEmail } = require("../../../utils/email");
 
 const ACCESS_EXPIRES_IN = "15m";
 const REFRESH_DAYS = 365;
 const REFRESH_COOKIE_NAME = "soukly_refresh_token";
+const PASSWORD_RESET_TTL_MIN = 60;
 
 function isSecureRequest(req) {
   if (req.secure) return true;
@@ -220,4 +223,118 @@ const getMe = asyncHandler(async (req, res) => {
   res.status(200).json({ user: formatUser(user) });
 });
 
-module.exports = { register, login, refreshToken, logout, getMe };
+// ── Password reset ───────────────────────────────────────────────────────────
+//
+// Two-step flow: POST /auth/forgot-password creates a single-use token, hashes
+// it in the DB, and emails the bearer the reset URL. POST /auth/reset-password
+// consumes that token, rotates the password, and destroys all sessions so any
+// device that knew the old credentials is forced to re-auth.
+//
+// Security notes:
+//   - We always return 200 from /forgot-password regardless of whether the
+//     email matched a user, to avoid leaking account existence (enumeration).
+//   - The token sent to the user is `<row_id>:<rawToken>` — we never store the
+//     raw token, only its bcrypt hash, so a DB leak can't be replayed.
+//   - On successful reset, ALL of the user's sessions are destroyed (Session
+//     rows deleted). This logs them out everywhere — intended behaviour after
+//     a credential rotation.
+
+function buildResetUrl(req, token) {
+  const base = process.env.CLIENT_URL || "http://localhost:3000";
+  const url = new URL("/reset-password", base);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ message: "email is required" });
+  }
+
+  // Always respond 200 — never reveal whether the email exists.
+  const respond = () => res.status(200).json({
+    message: "If an account exists for that email, a reset link has been sent.",
+  });
+
+  const user = await User.findOne({ where: { email } });
+  if (!user) return respond();
+
+  // Invalidate any previously issued (still-unused, still-valid) reset rows
+  // for this user. Stops a forgotten old link from being reused after the
+  // owner requests a fresh one.
+  await PasswordReset.destroy({
+    where: { user_id: user.id, used_at: null, expires_at: { [Op.gt]: new Date() } },
+  });
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const token_hash = await bcrypt.hash(rawToken, 10);
+  const expires_at = new Date(Date.now() + PASSWORD_RESET_TTL_MIN * 60 * 1000);
+  const row = await PasswordReset.create({ user_id: user.id, token_hash, expires_at });
+
+  const compositeToken = `${row.id}:${rawToken}`;
+  const resetUrl = buildResetUrl(req, compositeToken);
+
+  await sendEmail({
+    to: user.email,
+    subject: "Reset your Soukly password",
+    text:
+      `Hi ${user.name || "there"},\n\n` +
+      `You (or someone) asked to reset the password for your Soukly account.\n` +
+      `Open the link below within the next ${PASSWORD_RESET_TTL_MIN} minutes:\n\n` +
+      `${resetUrl}\n\n` +
+      `If you didn't request this, you can safely ignore this email.\n\n` +
+      `— Soukly`,
+    html:
+      `<p>Hi ${user.name || "there"},</p>` +
+      `<p>You (or someone) asked to reset the password for your Soukly account.</p>` +
+      `<p><a href="${resetUrl}">Click here to choose a new password</a> (link expires in ${PASSWORD_RESET_TTL_MIN} minutes).</p>` +
+      `<p>If you didn't request this, you can safely ignore this email.</p>` +
+      `<p>— Soukly</p>`,
+  });
+
+  return respond();
+});
+
+function parseResetToken(input) {
+  if (typeof input !== "string" || !input.includes(":")) return null;
+  const colon = input.indexOf(":");
+  const id = input.slice(0, colon);
+  const rawToken = input.slice(colon + 1);
+  if (!id || !rawToken) return null;
+  return { id, rawToken };
+}
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body || {};
+  const parsed = parseResetToken(token);
+  if (!parsed) {
+    return res.status(400).json({ message: "Invalid or malformed reset token" });
+  }
+  if (!password || typeof password !== "string" || password.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters" });
+  }
+
+  const row = await PasswordReset.findByPk(parsed.id);
+  // Same generic error for any failure so attackers can't probe which step failed
+  const reject = () => res.status(400).json({ message: "This reset link is invalid or has expired" });
+  if (!row || row.used_at || new Date(row.expires_at) < new Date()) return reject();
+
+  const matches = await bcrypt.compare(parsed.rawToken, row.token_hash);
+  if (!matches) return reject();
+
+  const user = await User.findByPk(row.user_id);
+  if (!user) return reject();
+
+  user.password = password; // beforeUpdate hook re-hashes
+  await user.save();
+
+  await row.update({ used_at: new Date() });
+
+  // Force logout everywhere — every existing session is now stale credentials.
+  await Session.destroy({ where: { user_id: user.id } });
+
+  res.status(200).json({ message: "Password updated. Please sign in with your new password." });
+});
+
+module.exports = { register, login, refreshToken, logout, getMe, forgotPassword, resetPassword };

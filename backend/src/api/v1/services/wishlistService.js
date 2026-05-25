@@ -3,7 +3,7 @@ const { Wishlist, StoreFollow, Product, Store, StoreCategory, GlobalCategory } =
 
 const PRODUCT_ATTRS = [
   "id", "name", "slug", "price", "compare_at_price",
-  "images", "status", "rating", "store_id",
+  "images", "status", "rating", "stock", "store_id",
 ];
 
 const STORE_ATTRS = [

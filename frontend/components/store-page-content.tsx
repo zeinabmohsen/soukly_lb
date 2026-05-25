@@ -319,14 +319,16 @@ export default function StorePageContent({ store, products, productsLoading }: S
                   accentColor={view.productsSection.accentColor || view.primaryColor}
                   showRating={view.theme.showProductRating}
                   product={{
-                    id:        product.id,
-                    name:      product.name,
-                    price:     product.price,
-                    image:     product.images?.[0]?.url,
-                    rating:    product.rating,
-                    inStock:   product.status !== "out_of_stock" && product.stock > 0,
-                    storeId:   product.store_id,
-                    storeName: store.name,
+                    id:           product.id,
+                    name:         product.name,
+                    price:        product.price,
+                    image:        product.images?.[0]?.url,
+                    rating:       product.rating,
+                    inStock:      product.status !== "out_of_stock" && product.stock > 0,
+                    storeId:      product.store_id,
+                    storeName:    store.name,
+                    colors:       product.colors,
+                    customizable: (product.customizations?.length ?? 0) > 0,
                   }}
                 />
               ))}

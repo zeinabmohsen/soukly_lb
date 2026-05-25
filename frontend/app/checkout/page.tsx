@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { useCart } from "@/hooks/useCart"
+import { useAppDispatch } from "@/hooks/useAppDispatch"
+import { applyStockSync } from "@/store/slices/cartSlice"
 import { useCheckoutMutation } from "@/store/api/orderApi"
 import {
   useGetMyAddressesQuery,
@@ -39,6 +41,7 @@ export default function CheckoutPage() {
   const { items, clearCart } = useCart()
   const router = useRouter()
   const { toast } = useToast()
+  const dispatch = useAppDispatch()
   const [checkout, { isLoading: isCheckingOut }] = useCheckoutMutation()
   const { data: addressesData, isLoading: addressesLoading } = useGetMyAddressesQuery(undefined, {
     skip: !isAuthenticated,
@@ -153,7 +156,23 @@ export default function CheckoutPage() {
       toast({ title: `${result.orders.length} order(s) placed successfully!` })
       router.push("/orders")
     } catch (err: unknown) {
-      const msg = (err as { data?: { message?: string } })?.data?.message ?? "Checkout failed"
+      const data = (err as { data?: { message?: string; code?: string; items?: Array<{ product_id: string; name: string; requested: number; available: number }> } })?.data
+      if (data?.code === "INSUFFICIENT_STOCK" && Array.isArray(data.items)) {
+        dispatch(applyStockSync(data.items.map((i) => ({ product_id: i.product_id, available: i.available }))))
+        const removed = data.items.filter((i) => i.available === 0).map((i) => `"${i.name}"`).join(", ")
+        const capped  = data.items.filter((i) => i.available > 0)
+          .map((i) => `"${i.name}" (now ${i.available})`).join(", ")
+        const parts = []
+        if (capped)  parts.push(`Updated: ${capped}`)
+        if (removed) parts.push(`Out of stock — removed: ${removed}`)
+        toast({
+          title: "Stock changed — cart updated",
+          description: parts.join(" · ") || "We've adjusted your cart to match what's available. Try again.",
+          variant: "destructive",
+        })
+        return
+      }
+      const msg = data?.message ?? "Checkout failed"
       toast({ title: msg, variant: "destructive" })
     }
   }

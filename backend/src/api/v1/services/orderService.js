@@ -43,8 +43,11 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
     include: [{ model: Store, as: "store", attributes: ["id", "name", "slug", "is_approved"] }],
   });
 
-  // Validate every requested product
+  // Validate every requested product. Collect ALL stock conflicts before
+  // throwing so the client can show them together (and auto-cap each line)
+  // instead of bouncing the user back N times for N conflicting items.
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const stockConflicts = [];
   for (const item of items) {
     const product = productMap.get(item.product_id);
     if (!product) {
@@ -58,10 +61,21 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
       throw err;
     }
     if (product.stock < item.quantity) {
-      const err = new Error(`Insufficient stock for "${product.name}" (available: ${product.stock})`);
-      err.status = 422;
-      throw err;
+      stockConflicts.push({
+        product_id: product.id,
+        name: product.name,
+        requested: item.quantity,
+        available: product.stock,
+      });
     }
+  }
+  if (stockConflicts.length > 0) {
+    const names = stockConflicts.map((c) => `"${c.name}" (only ${c.available} left)`).join(", ");
+    const err = new Error(`Some items have insufficient stock: ${names}. Please update your cart.`);
+    err.status = 422;
+    err.code = "INSUFFICIENT_STOCK";
+    err.items = stockConflicts;
+    throw err;
   }
 
   // Group items by store
@@ -117,16 +131,38 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
         { transaction: t }
       );
 
-      // Decrement stock and increment sales_count atomically
+      // Atomic conditional decrement — the WHERE clause includes `stock >= qty`
+      // so if a concurrent order already drained the inventory, this UPDATE
+      // affects 0 rows and we abort the transaction. Prevents oversell when
+      // two buyers race for the last unit.
       for (const { item, product } of lineItems) {
-        await Product.decrement(
-          { stock: item.quantity },
-          { where: { id: product.id }, transaction: t }
+        const qty = Number(item.quantity);
+        const [affected] = await Product.update(
+          {
+            stock:       sequelize.literal(`stock - ${qty}`),
+            sales_count: sequelize.literal(`sales_count + ${qty}`),
+          },
+          {
+            where: { id: product.id, stock: { [Op.gte]: qty } },
+            transaction: t,
+          }
         );
-        await Product.increment(
-          { sales_count: item.quantity },
-          { where: { id: product.id }, transaction: t }
-        );
+        if (affected === 0) {
+          const fresh = await Product.findByPk(product.id, { transaction: t });
+          const available = fresh?.stock ?? 0;
+          const err = new Error(
+            `"${product.name}" sold out while you were checking out (only ${available} left). Please update your cart.`
+          );
+          err.status = 422;
+          err.code = "INSUFFICIENT_STOCK";
+          err.items = [{
+            product_id: product.id,
+            name: product.name,
+            requested: qty,
+            available,
+          }];
+          throw err;
+        }
       }
 
       orders.push({ ...order.toJSON(), items: orderItems });

@@ -24,7 +24,7 @@ export function useCart() {
     isCartOpen,
     totalItems,
     totalPrice,
-    addItem: (item: Omit<CartItem, "quantity">) => dispatch(addItem(item)),
+    addItem: (item: Omit<CartItem, "quantity" | "line_id"> & { line_id?: string }) => dispatch(addItem(item)),
     removeItem: (id: string) => dispatch(removeItem(id)),
     updateQuantity: (id: string, quantity: number) => dispatch(updateQuantity({ id, quantity })),
     clearCart: () => dispatch(clearCart()),

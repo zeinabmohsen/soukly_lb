@@ -5,7 +5,7 @@ const USERS = [
   {
     email: "admin@soukly.com",
     name: "Soukly Admin",
-    password: "Admin123!",
+    password: "SouklyAdm!n_K9p4",
     phone: "+96100000001",
     is_admin: true,
     is_seller: false,
@@ -15,7 +15,7 @@ const USERS = [
   {
     email: "buyer@soukly.com",
     name: "Sami Buyer",
-    password: "Buyer123!",
+    password: "SouklyBuy3r!_M7q",
     phone: "+96170111222",
     is_admin: false,
     is_seller: false,
@@ -25,7 +25,7 @@ const USERS = [
   {
     email: "seller@soukly.com",
     name: "Lina Seller",
-    password: "Seller123!",
+    password: "SouklySell3r!_T2v",
     phone: "+96171333444",
     is_admin: false,
     is_seller: true,
@@ -35,7 +35,7 @@ const USERS = [
   {
     email: "seller2@soukly.com",
     name: "Karim Crafts",
-    password: "Seller123!",
+    password: "SouklyCrafts!_X8z",
     phone: "+96176555666",
     is_admin: false,
     is_seller: true,

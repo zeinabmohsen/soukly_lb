@@ -5,7 +5,7 @@ import {
   type FetchArgs,
   type FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react"
-import { updateToken, logout } from "../slices/authSlice"
+import { updateToken } from "../slices/authSlice"
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1",
@@ -31,7 +31,6 @@ const performRefresh = async (
       api.dispatch(updateToken(access_token))
       return access_token
     }
-    api.dispatch(logout())
     return null
   })()
   try {

@@ -209,10 +209,10 @@ npm run dev    # starts on http://localhost:3000
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `admin@soukly.com` | `Admin123!` |
-| Buyer | `buyer@soukly.com` | `Buyer123!` |
-| Seller | `seller@soukly.com` | `Seller123!` |
-| Seller | `seller2@soukly.com` | `Seller123!` |
+| Admin | `admin@soukly.com` | `SouklyAdm!n_K9p4` |
+| Buyer | `buyer@soukly.com` | `SouklyBuy3r!_M7q` |
+| Seller | `seller@soukly.com` | `SouklySell3r!_T2v` |
+| Seller | `seller2@soukly.com` | `SouklyCrafts!_X8z` |
 
 ---
 

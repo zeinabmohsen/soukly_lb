@@ -4,24 +4,37 @@ const crypto = require("crypto");
 const asyncHandler = require("../../../utils/asyncHandler");
 const { User, Session } = require("../models");
 const { createUser: createUserService } = require("../services/userService");
-const { jwtSecret, nodeEnv } = require("../../../config");
+const { jwtSecret } = require("../../../config");
 
 const ACCESS_EXPIRES_IN = "15m";
 const REFRESH_DAYS = 365;
 const REFRESH_COOKIE_NAME = "soukly_refresh_token";
 
-function setRefreshCookie(res, refreshToken, expiresAt) {
+function isSecureRequest(req) {
+  if (req.secure) return true;
+  const proto = req.headers["x-forwarded-proto"];
+  if (typeof proto === "string" && proto.split(",")[0].trim() === "https") return true;
+  return false;
+}
+
+function setRefreshCookie(req, res, refreshToken, expiresAt) {
+  const crossSite = isSecureRequest(req);
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
     httpOnly: true,
-    sameSite: nodeEnv === "production" ? "none" : "lax",
-    secure: nodeEnv === "production",
+    sameSite: crossSite ? "none" : "lax",
+    secure: crossSite,
     expires: expiresAt,
     path: "/api/v1/auth",
   });
 }
 
-function clearRefreshCookie(res) {
-  res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/v1/auth" });
+function clearRefreshCookie(req, res) {
+  const crossSite = isSecureRequest(req);
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    path: "/api/v1/auth",
+    sameSite: crossSite ? "none" : "lax",
+    secure: crossSite,
+  });
 }
 
 function signAccessToken(user) {
@@ -111,7 +124,7 @@ const register = asyncHandler(async (req, res) => {
   const user = await createUserService({ name, email, password, phone });
   const accessToken = signAccessToken(user);
   const session = await createSession(user.id);
-  setRefreshCookie(res, session.refreshToken, session.expiresAt);
+  setRefreshCookie(req, res, session.refreshToken, session.expiresAt);
 
   res.status(201).json({
     user: formatUser(user),
@@ -139,7 +152,7 @@ const login = asyncHandler(async (req, res) => {
 
   const accessToken = signAccessToken(user);
   const session = await createSession(user.id);
-  setRefreshCookie(res, session.refreshToken, session.expiresAt);
+  setRefreshCookie(req, res, session.refreshToken, session.expiresAt);
 
   res.status(200).json({
     user: formatUser(user),
@@ -167,7 +180,7 @@ const refreshToken = asyncHandler(async (req, res) => {
   const matches = await bcrypt.compare(parsed.rawToken, session.refresh_token_hash);
   if (!matches) {
     await Session.destroy({ where: { user_id: session.user_id } });
-    clearRefreshCookie(res);
+    clearRefreshCookie(req, res);
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 
@@ -195,7 +208,7 @@ const logout = asyncHandler(async (req, res) => {
     const session = await Session.findByPk(parsed.sessionId);
     if (session) await session.destroy();
   }
-  clearRefreshCookie(res);
+  clearRefreshCookie(req, res);
   res.status(200).json({ message: "Logged out" });
 });
 

@@ -104,45 +104,39 @@ export function AdvancedSearch() {
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && (query.length > 0 || recentSearches.length > 0) && (
         <>
           <div className="fixed inset-0 z-[55]" onClick={() => setIsOpen(false)} />
           <Card className="absolute top-full left-0 right-0 mt-2 p-4 z-[60] max-h-[min(500px,60vh)] overflow-y-auto shadow-xl border-border/80">
             {query.length === 0 ? (
-              recentSearches.length > 0 ? (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-sm flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Recent
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setRecentSearches([])
-                        localStorage.removeItem("soukly_recent_searches")
-                      }}
-                      className="text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    {recentSearches.map((search, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setQuery(search)}
-                        className="block w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm"
-                      >
-                        {search}
-                      </button>
-                    ))}
-                  </div>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Recent
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setRecentSearches([])
+                      localStorage.removeItem("soukly_recent_searches")
+                    }}
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
                 </div>
-              ) : (
-                <p className="text-center py-6 text-sm text-muted-foreground">
-                  Type to search products, stores, and categories.
-                </p>
-              )
+                <div className="space-y-1">
+                  {recentSearches.map((search, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setQuery(search)}
+                      className="block w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm"
+                    >
+                      {search}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : isFetching ? (
               <div className="flex items-center justify-center py-10 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />

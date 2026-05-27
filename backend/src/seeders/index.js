@@ -10,6 +10,8 @@ const {
   applyProductColorsColumn,
   applyProductCustomizationsColumn,
   applyPasswordResetsTable,
+  applyStoreSocialColumns,
+  applyUserPasswordVersionColumn,
 } = require("./migrations");
 
 async function runSeeds() {
@@ -27,6 +29,8 @@ async function runSeeds() {
   await applyProductColorsColumn(sequelize);
   await applyProductCustomizationsColumn(sequelize);
   await applyPasswordResetsTable(sequelize);
+  await applyStoreSocialColumns(sequelize);
+  await applyUserPasswordVersionColumn(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

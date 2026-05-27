@@ -18,7 +18,7 @@ import {
   Sparkles,
   Bell,
   ChevronRight,
-  Tag,
+  LayoutList,
   Zap,
   Store,
   ExternalLink,
@@ -47,6 +47,13 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 }
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+
+// Coerce a possibly-null/undefined/string money field to a number, treating
+// non-finite values (incl. NaN) as 0 so they don't poison sums or render "$NaN".
+function toAmount(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
@@ -104,7 +111,9 @@ export default function SellerDashboard() {
   const { data: myStore } = useGetMyStoreQuery(undefined, { skip: !isSeller })
   const { data: productsData } = useGetMyProductsQuery(undefined, { skip: !isSeller })
   const { data: ordersData } = useGetStoreOrdersQuery({ limit: 100 }, { skip: !isSeller })
-  const productCount = productsData?.data?.length ?? 0
+  // Use the paginated `total` — not data.length — so the count reflects ALL
+  // products, not just the first page returned by the default limit.
+  const productCount = productsData?.total ?? 0
   const orders = ordersData?.data ?? []
 
   useEffect(() => {
@@ -118,16 +127,18 @@ export default function SellerDashboard() {
 
     const totalRevenue = orders
       .filter((o) => o.status !== "cancelled")
-      .reduce((sum, o) => sum + Number(o.total_amount), 0)
+      .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
 
-    const totalOrders = orders.length
+    // Use the paginated `total` so the count is accurate even when the store
+    // has more orders than our fetch limit (100).
+    const totalOrders = ordersData?.total ?? orders.length
 
     const customerSet = new Set(orders.map((o) => o.buyer_id))
 
     const todays = orders.filter((o) => new Date(o.created_at) >= todayStart)
     const todaysRevenue = todays
       .filter((o) => o.status !== "cancelled")
-      .reduce((sum, o) => sum + Number(o.total_amount), 0)
+      .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
     const todaysOrders = todays.length
 
     const pendingCount = orders.filter((o) => o.status === "pending").length
@@ -142,7 +153,60 @@ export default function SellerDashboard() {
     }
   }, [orders])
 
-  // Weekly revenue chart — last 7 days, oldest left → newest right
+  // Revenue chart — buckets depend on the W / M / Y toggle.
+  //   W → last 7 days, day buckets (Mon, Tue, …)
+  //   M → last 30 days, 6 buckets of 5 days each (labelled by day-of-month)
+  //   Y → last 12 months, month buckets (Jan, Feb, …)
+  const revenueChart = useMemo(() => {
+    const now = new Date()
+    const buckets: { day: string; revenue: number }[] = []
+
+    if (revPeriod === "W") {
+      for (let i = 6; i >= 0; i--) {
+        const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+        const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
+        const revenue = orders
+          .filter((o) => {
+            const ts = new Date(o.created_at)
+            return o.status !== "cancelled" && ts >= day && ts < next
+          })
+          .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
+        buckets.push({ day: DAY_LABELS[day.getDay()], revenue })
+      }
+    } else if (revPeriod === "M") {
+      // 30 days in 6 × 5-day buckets, labelled by the start day-of-month
+      const bucketDays = 5
+      for (let i = 5; i >= 0; i--) {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (i + 1) * bucketDays + 1)
+        const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * bucketDays + 1)
+        const revenue = orders
+          .filter((o) => {
+            const ts = new Date(o.created_at)
+            return o.status !== "cancelled" && ts >= start && ts < end
+          })
+          .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
+        buckets.push({ day: String(start.getDate()), revenue })
+      }
+    } else {
+      // Last 12 months, month buckets
+      const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+      for (let i = 11; i >= 0; i--) {
+        const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
+        const revenue = orders
+          .filter((o) => {
+            const ts = new Date(o.created_at)
+            return o.status !== "cancelled" && ts >= start && ts < end
+          })
+          .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
+        buckets.push({ day: monthLabels[start.getMonth()], revenue })
+      }
+    }
+    return buckets
+  }, [orders, revPeriod])
+
+  // Sparklines keep showing the weekly view so stat cards have a consistent
+  // 7-day-trend feel regardless of the chart toggle.
   const weeklyRevenue = useMemo(() => {
     const now = new Date()
     const buckets: { day: string; revenue: number }[] = []
@@ -154,13 +218,14 @@ export default function SellerDashboard() {
           const ts = new Date(o.created_at)
           return o.status !== "cancelled" && ts >= day && ts < next
         })
-        .reduce((sum, o) => sum + Number(o.total_amount), 0)
+        .reduce((sum, o) => sum + toAmount(o.total_amount), 0)
       buckets.push({ day: DAY_LABELS[day.getDay()], revenue })
     }
     return buckets
   }, [orders])
 
-  const weeklyTotal = weeklyRevenue.reduce((s, d) => s + d.revenue, 0)
+  const chartTotal = revenueChart.reduce((s, d) => s + d.revenue, 0)
+  const chartLabel = revPeriod === "W" ? "This week" : revPeriod === "M" ? "Last 30 days" : "This year"
 
   // Sparklines from weekly data
   const sparkRevenue = weeklyRevenue.map((d) => ({ v: d.revenue }))
@@ -187,6 +252,60 @@ export default function SellerDashboard() {
       .slice(0, 5)
   }, [orders])
 
+  // Real Store Health — replaces the hardcoded percentages and fake Views/Conv/Rating.
+  // We measure three concrete, fixable things and link the setup CTA to whatever
+  // the seller is most behind on.
+  const storeHealth = useMemo(() => {
+    const profileChecks = myStore
+      ? [
+          { key: "description", ok: !!(myStore.description && myStore.description.trim().length > 20) },
+          { key: "location",    ok: !!myStore.location },
+          { key: "logo",        ok: !!myStore.logo_url },
+          { key: "cover",       ok: !!myStore.cover_url },
+          { key: "whatsapp",    ok: !!myStore.whatsapp },
+        ]
+      : []
+    const profileCompletePct = profileChecks.length
+      ? Math.round((profileChecks.filter((c) => c.ok).length / profileChecks.length) * 100)
+      : 0
+
+    // Catalog — 10+ products is "healthy"
+    const catalogPct = Math.min(100, Math.round((productCount / 10) * 100))
+
+    // Storefront — hero customized away from defaults + a footer about-text.
+    // Store.hero/footer are JSONB, typed as Record<string, unknown> on the
+    // client; coerce to strings before reading.
+    const heroBg       = (myStore?.hero?.bg_image_url as string | undefined) ?? ""
+    const heroHeadline = (myStore?.hero?.headline    as string | undefined) ?? ""
+    const footerAbout  = (myStore?.footer?.about_text as string | undefined) ?? ""
+    const heroSet   = !!(heroBg || heroHeadline.trim())
+    const footerSet = !!footerAbout.trim()
+    const storefrontPct = Math.round(((heroSet ? 1 : 0) + (footerSet ? 1 : 0)) / 2 * 100)
+
+    const isLive =
+      !!myStore?.is_approved &&
+      (myStore?.subscription_status === "active" || myStore?.subscription_status === "trialing")
+
+    return {
+      profileCompletePct,
+      catalogPct,
+      storefrontPct,
+      isLive,
+      profileChecks,
+      heroSet,
+      footerSet,
+    }
+  }, [myStore, productCount])
+
+  // Average product rating (real) — null when no reviews yet so we can hide it
+  const avgProductRating = useMemo(() => {
+    const rated = (productsData?.data ?? []).filter((p) => p.review_count > 0)
+    if (rated.length === 0) return null
+    const sum = rated.reduce((s, p) => s + toAmount(p.rating) * p.review_count, 0)
+    const totalReviews = rated.reduce((s, p) => s + p.review_count, 0)
+    return totalReviews > 0 ? sum / totalReviews : null
+  }, [productsData])
+
   if (!isAuthenticated || !isSeller) return null
 
   const hour      = new Date().getHours()
@@ -203,20 +322,32 @@ export default function SellerDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
-          <Link href="/seller/store-builder" className="hidden sm:block">
-            <Button variant="outline" size="sm" className="gap-1.5 bg-transparent text-xs">
-              <ExternalLink className="w-3.5 h-3.5" />
-              View Store
-            </Button>
-          </Link>
-          <button className="relative p-2 rounded-xl border border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all">
+          {myStore && (
+            <Link
+              href={`/store/${myStore.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:block"
+              title="Open your public store page in a new tab"
+            >
+              <Button variant="outline" size="sm" className="gap-1.5 bg-transparent text-xs">
+                <ExternalLink className="w-3.5 h-3.5" />
+                View Store
+              </Button>
+            </Link>
+          )}
+          <Link
+            href="/seller/orders"
+            title={stats.pendingCount > 0 ? `${stats.pendingCount} pending order${stats.pendingCount === 1 ? "" : "s"}` : "Orders"}
+            className="relative p-2 rounded-xl border border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all"
+          >
             <Bell className="w-4 h-4" />
             {stats.pendingCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
                 {stats.pendingCount}
               </span>
             )}
-          </button>
+          </Link>
           <Link href="/seller/products/add">
             <Button size="sm" className="gap-1.5 text-xs shadow-md shadow-primary/20">
               <Plus className="w-3.5 h-3.5" />
@@ -245,20 +376,19 @@ export default function SellerDashboard() {
                 {user?.name ?? "Your Store"}
               </h2>
               <p className="text-white/70 text-[11px] md:text-xs mt-1 flex items-center gap-1.5 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-300 inline-block flex-shrink-0" />
-                <span className="truncate">{myStore ? `soukly.com/store/${myStore.slug}` : "soukly.com/store/—"}</span>
+                <span className={`w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 ${storeHealth.isLive ? "bg-green-300" : "bg-amber-300"}`} />
+                <span className="truncate">{myStore?.name ?? "—"} · {storeHealth.isLive ? "Live in the marketplace" : "Not live yet"}</span>
               </p>
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 md:gap-8">
               {[
-                { label: "Revenue", value: `$${stats.todaysRevenue.toFixed(0)}` },
-                { label: "Orders",  value: String(stats.todaysOrders) },
-                { label: "Pending", value: String(stats.pendingCount) },
+                { label: "Today's Revenue", value: `$${stats.todaysRevenue.toFixed(0)}` },
+                { label: "Today's Orders",  value: String(stats.todaysOrders) },
               ].map((k) => (
                 <div key={k.label} className="text-center">
                   <p className="text-xl md:text-2xl font-bold text-white">{k.value}</p>
-                  <p className="text-white/60 text-[10px] md:text-[11px]">Today's {k.label}</p>
+                  <p className="text-white/60 text-[10px] md:text-[11px]">{k.label}</p>
                 </div>
               ))}
               <div className="hidden sm:block w-px h-10 bg-white/20" />
@@ -368,8 +498,10 @@ export default function SellerDashboard() {
           {[
             { label: "Total Revenue",   value: `$${stats.totalRevenue.toFixed(2)}`, icon: TrendingUp,  spark: sparkRevenue, color: "#7C3AED", id: "sp0" },
             { label: "Total Orders",    value: String(stats.totalOrders),           icon: ShoppingBag, spark: sparkOrders,  color: "#EA580C", id: "sp1" },
-            { label: "Products Listed", value: String(productCount),                icon: Package,     spark: sparkRevenue, color: "#059669", id: "sp2" },
-            { label: "Customers",       value: String(stats.customers),             icon: Users,       spark: sparkOrders,  color: "#DB2777", id: "sp3" },
+            // Products / Customers don't have time-series so we hide their sparklines
+            // rather than reusing revenue/orders data (which was misleading).
+            { label: "Products Listed", value: String(productCount),                icon: Package,     spark: null,         color: "#059669", id: "sp2" },
+            { label: "Unique Buyers",   value: String(stats.customers),             icon: Users,       spark: null,         color: "#DB2777", id: "sp3" },
           ].map((stat) => {
             const Icon = stat.icon
             return (
@@ -382,9 +514,11 @@ export default function SellerDashboard() {
                 </div>
                 <p className="text-muted-foreground text-xs mb-0.5">{stat.label}</p>
                 <p className="text-2xl font-bold text-foreground tracking-tight mb-3">{stat.value}</p>
-                <div className="h-12 -mx-1 -mb-1 mt-auto">
-                  <Spark data={stat.spark} color={stat.color} id={stat.id} />
-                </div>
+                {stat.spark && (
+                  <div className="h-12 -mx-1 -mb-1 mt-auto">
+                    <Spark data={stat.spark} color={stat.color} id={stat.id} />
+                  </div>
+                )}
               </div>
             )
           })}
@@ -396,7 +530,7 @@ export default function SellerDashboard() {
             <div>
               <h3 className="text-foreground font-semibold text-sm">Revenue Overview</h3>
               <p className="text-muted-foreground text-xs mt-0.5">
-                This week · <span className="text-foreground font-medium">${weeklyTotal.toFixed(2)} total</span>
+                {chartLabel} · <span className="text-foreground font-medium">${chartTotal.toFixed(2)} total</span>
               </p>
             </div>
             <div className="flex gap-1 p-1 rounded-lg bg-muted/50">
@@ -414,7 +548,7 @@ export default function SellerDashboard() {
           </div>
           <div className="px-4 pt-3 pb-2">
             <ResponsiveContainer width="100%" height={150}>
-              <AreaChart data={weeklyRevenue} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <AreaChart data={revenueChart} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%"   stopColor="#7C3AED" stopOpacity={0.2} />
@@ -470,12 +604,39 @@ export default function SellerDashboard() {
                     const firstItem = items[0]?.product_snapshot?.name ?? "—"
                     const moreCount = items.length - 1
                     return (
-                      <Link key={order.id} href={`/orders/${order.id}`}
-                        className="grid grid-cols-[auto_1fr_1fr_auto_auto] gap-3 items-center px-6 py-3.5 hover:bg-muted/30 transition-colors">
-                        <span className="text-primary text-xs font-mono font-semibold">
+                      <Link
+                        key={order.id}
+                        href={`/orders/${order.id}`}
+                        className="block sm:grid sm:grid-cols-[auto_1fr_1fr_auto_auto] gap-3 px-6 py-3.5 hover:bg-muted/30 transition-colors"
+                      >
+                        {/* Mobile: stacked card */}
+                        <div className="sm:hidden flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm">
+                            {initialsFor(customerName)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-foreground text-sm font-medium truncate">{customerName}</p>
+                              <p className="text-foreground text-sm font-bold flex-shrink-0">${toAmount(order.total_amount).toFixed(2)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-primary text-[11px] font-mono font-semibold">#{order.id.slice(0, 6)}</span>
+                              <span className="text-muted-foreground text-[11px]">·</span>
+                              <span className="text-muted-foreground text-[11px] truncate flex-1 min-w-0">
+                                {firstItem}{moreCount > 0 ? ` +${moreCount} more` : ""}
+                              </span>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border flex-shrink-0 ${s.cls}`}>
+                                {s.label}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Desktop: 5-col grid */}
+                        <span className="hidden sm:inline text-primary text-xs font-mono font-semibold self-center">
                           #{order.id.slice(0, 6)}
                         </span>
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="hidden sm:flex items-center gap-2.5 min-w-0 self-center">
                           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm">
                             {initialsFor(customerName)}
                           </div>
@@ -484,11 +645,11 @@ export default function SellerDashboard() {
                             <p className="text-muted-foreground text-[10px]">{timeAgo(new Date(order.created_at))}</p>
                           </div>
                         </div>
-                        <p className="text-muted-foreground text-sm truncate">
+                        <p className="hidden sm:block text-muted-foreground text-sm truncate self-center">
                           {firstItem}{moreCount > 0 ? ` +${moreCount} more` : ""}
                         </p>
-                        <p className="text-foreground text-sm font-bold">${Number(order.total_amount).toFixed(2)}</p>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${s.cls}`}>
+                        <p className="hidden sm:block text-foreground text-sm font-bold self-center">${toAmount(order.total_amount).toFixed(2)}</p>
+                        <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border self-center ${s.cls}`}>
                           {s.label}
                         </span>
                       </Link>
@@ -512,10 +673,10 @@ export default function SellerDashboard() {
               </div>
               <div className="space-y-1">
                 {[
-                  { icon: Plus,      label: "Add New Product",  href: "/seller/products/add"  },
-                  { icon: Edit,      label: "Edit Store Design", href: "/seller/store-builder" },
-                  { icon: BarChart3, label: "View Analytics",   href: "/seller/analytics"     },
-                  { icon: Tag,       label: "Create Promotion", href: "/seller/promotions"    },
+                  { icon: Plus,       label: "Add New Product",   href: "/seller/products/add"  },
+                  { icon: Edit,       label: "Edit Store Design", href: "/seller/store-builder" },
+                  { icon: BarChart3,  label: "View Analytics",    href: "/seller/analytics"     },
+                  { icon: LayoutList, label: "Manage Categories", href: "/seller/products?tab=categories" },
                 ].map((a) => {
                   const Icon = a.icon
                   return (
@@ -532,7 +693,7 @@ export default function SellerDashboard() {
               </div>
             </div>
 
-            {/* Store health */}
+            {/* Store health — real signals only */}
             <div className="bg-card border border-border rounded-2xl p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -541,25 +702,32 @@ export default function SellerDashboard() {
                   </div>
                   <h3 className="text-foreground font-semibold text-sm">Store Health</h3>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-                  Live
-                </span>
+                {storeHealth.isLive ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+                    Live
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                    Not live
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3 mb-5">
                 {[
-                  { label: "Profile complete",  pct: 80 },
-                  { label: "Products uploaded", pct: 65 },
-                  { label: "Store page ready",  pct: 90 },
+                  { label: "Profile complete", pct: storeHealth.profileCompletePct, hint: "logo, cover, description, location, contact" },
+                  { label: "Catalog (10+ products)", pct: storeHealth.catalogPct, hint: `${productCount} listed` },
+                  { label: "Storefront set up", pct: storeHealth.storefrontPct, hint: "hero + footer customised" },
                 ].map((item) => (
                   <div key={item.label}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">{item.label}</span>
+                      <span className="text-muted-foreground" title={item.hint}>{item.label}</span>
                       <span className="text-foreground font-semibold">{item.pct}%</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+                      <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all"
                         style={{ width: `${item.pct}%` }} />
                     </div>
                   </div>
@@ -567,23 +735,28 @@ export default function SellerDashboard() {
               </div>
 
               <div className="grid grid-cols-3 gap-2 mb-4">
-                {[
-                  { label: "Views",  value: "2.4k" },
-                  { label: "Conv.",  value: "3.2%" },
-                  { label: "Rating", value: "4.8★" },
-                ].map((m) => (
-                  <div key={m.label}
-                    className="text-center py-2.5 rounded-xl bg-muted/50 border border-border hover:border-primary/30 transition-colors">
-                    <p className="text-foreground text-sm font-bold">{m.value}</p>
-                    <p className="text-muted-foreground text-[10px]">{m.label}</p>
-                  </div>
-                ))}
+                <div className="text-center py-2.5 rounded-xl bg-muted/50 border border-border">
+                  <p className="text-foreground text-sm font-bold">{productCount}</p>
+                  <p className="text-muted-foreground text-[10px]">Products</p>
+                </div>
+                <div className="text-center py-2.5 rounded-xl bg-muted/50 border border-border">
+                  <p className="text-foreground text-sm font-bold">{stats.totalOrders}</p>
+                  <p className="text-muted-foreground text-[10px]">Orders</p>
+                </div>
+                <div className="text-center py-2.5 rounded-xl bg-muted/50 border border-border">
+                  <p className="text-foreground text-sm font-bold">
+                    {avgProductRating !== null ? `${avgProductRating.toFixed(1)}★` : "—"}
+                  </p>
+                  <p className="text-muted-foreground text-[10px]">Rating</p>
+                </div>
               </div>
 
               <Link href="/seller/store-builder">
                 <Button className="w-full gap-2 shadow-md shadow-primary/20 group" size="sm">
                   <Zap className="w-3.5 h-3.5" />
-                  Complete Setup
+                  {storeHealth.profileCompletePct < 100 || storeHealth.storefrontPct < 100
+                    ? "Finish storefront setup"
+                    : "Edit storefront"}
                   <ArrowRight className="w-3.5 h-3.5 ml-auto transition-transform group-hover:translate-x-0.5" />
                 </Button>
               </Link>

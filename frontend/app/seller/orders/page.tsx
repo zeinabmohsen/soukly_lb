@@ -113,7 +113,7 @@ export default function SellerOrdersPage() {
                           <Package className="w-3.5 h-3.5" />
                           {items.length} items
                         </span>
-                        <span className="font-semibold text-foreground">${Number(order.total_amount).toFixed(2)}</span>
+                        <span className="font-semibold text-foreground">${(Number(order.total_amount) || 0).toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

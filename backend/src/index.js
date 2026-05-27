@@ -13,6 +13,7 @@ const corsOptions = require("./config/corsOptions");
 const { port, nodeEnv } = require("./config");
 const configurePassport = require("./config/passports");
 const requestTimer = require("./api/v1/middlewares/requestTimer");
+const csrfOrigin = require("./api/v1/middlewares/csrfOrigin");
 const apiRouter = require("./api");
 
 const app = express();
@@ -37,6 +38,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(morgan(nodeEnv === "production" ? "combined" : "dev"));
 app.use(requestTimer);
+app.use(csrfOrigin);
 
 configurePassport(passport);
 app.use(passport.initialize());

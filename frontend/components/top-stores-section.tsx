@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { Star, MapPin, TrendingUp } from "lucide-react"
+import { Star, MapPin, TrendingUp, ArrowRight } from "lucide-react"
 import { useGetStoresQuery } from "@/store/api/storeApi"
 
 export default function TopStoresSection() {
@@ -93,16 +93,35 @@ export default function TopStoresSection() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 md:pt-4 border-t">
-                        {store.category && (
-                          <span className="text-xs md:text-sm text-muted-foreground">{store.category.name}</span>
-                        )}
-                        <Button
-                          size="sm"
-                          className="ml-auto group-hover:bg-primary group-hover:text-primary-foreground transition-colors text-xs md:text-sm px-3 py-1"
-                        >
-                          Visit
-                        </Button>
+                      <div className="pt-2 md:pt-4 border-t">
+                        {/* Mobile: stack category above a full-width Visit CTA */}
+                        <div className="md:hidden space-y-2">
+                          {store.category && (
+                            <span className="block text-[11px] text-muted-foreground line-clamp-1">
+                              {store.category.name}
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            className="w-full gap-1 h-9 text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                          >
+                            Visit Store
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        {/* Desktop: side-by-side */}
+                        <div className="hidden md:flex items-center justify-between">
+                          {store.category && (
+                            <span className="text-sm text-muted-foreground">{store.category.name}</span>
+                          )}
+                          <Button
+                            size="sm"
+                            className="ml-auto gap-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                          >
+                            Visit
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>

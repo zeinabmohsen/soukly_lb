@@ -7,6 +7,12 @@ import {
 } from "@reduxjs/toolkit/query/react"
 import { updateToken } from "../slices/authSlice"
 
+// When the access token is within this many ms of expiring, refresh it BEFORE
+// firing the next request. Eliminates the "first request after 15m fails with
+// 401, retries, succeeds" UX blip — instead we refresh quietly in the
+// background. 60s gives plenty of head room for a slow refresh round-trip.
+const REFRESH_LEAD_MS = 60 * 1000
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1",
   credentials: "include",
@@ -40,14 +46,35 @@ const performRefresh = async (
   }
 }
 
+/** True when the access token is missing, expired, or about to expire. */
+function tokenNeedsRefresh(state: unknown): boolean {
+  const auth = (state as { auth: { accessToken: string | null; accessTokenExpiresAt: number | null } }).auth
+  if (!auth.accessToken || !auth.accessTokenExpiresAt) return false
+  return auth.accessTokenExpiresAt - Date.now() < REFRESH_LEAD_MS
+}
+
 const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
   args,
   api,
   extraOptions,
 ) => {
+  // The refresh endpoint itself must never trigger a pre-emptive refresh —
+  // that would deadlock (refresh calls refresh calls refresh…).
+  const isRefreshCall =
+    typeof args === "object" && args !== null && "url" in args && (args as FetchArgs).url === "/auth/refresh"
+
+  // Pre-emptive refresh: if our access token is close to expiring, refresh
+  // BEFORE making the request so the request goes out with a fresh token.
+  // performRefresh dedupes parallel callers via refreshPromise.
+  if (!isRefreshCall && tokenNeedsRefresh(api.getState())) {
+    await performRefresh(api, extraOptions)
+  }
+
   let result = await rawBaseQuery(args, api, extraOptions)
 
-  if (result.error?.status === 401) {
+  // Reactive refresh: server still said 401 (maybe our exp was wrong, clock
+  // skew, token got revoked, etc). Refresh and retry once.
+  if (result.error?.status === 401 && !isRefreshCall) {
     const newToken = await performRefresh(api, extraOptions)
     if (newToken) {
       result = await rawBaseQuery(args, api, extraOptions)

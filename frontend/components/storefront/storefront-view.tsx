@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Facebook, Instagram, Mail, Phone, MapPin, MessageCircle, Youtube, Twitter, Clock, Mail as MailIcon, ArrowLeft, Menu, X } from "lucide-react"
+import { Facebook, Instagram, Mail, Phone, MapPin, MessageCircle, Youtube, Twitter, Clock, ArrowLeft, Menu, X } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import type { Store } from "@/store/api/storeApi"
@@ -81,12 +81,6 @@ export type ProductsSection = {
 export type FooterColumn = {
   title: string
   links: { label: string; url: string }[]
-}
-
-export type Newsletter = {
-  enabled: boolean
-  heading: string
-  subheading: string
 }
 
 // ─── Custom navigation ────────────────────────────────────────────────────────
@@ -169,7 +163,7 @@ export type FooterColors = {
   // Empty string = use the default for the chosen footerStyle.
   text:    string  // body text + contact rows
   heading: string  // column titles ("Contact", custom column titles)
-  accent:  string  // "Powered by Soukly" link + social icon hover + newsletter button
+  accent:  string  // "Powered by Soukly" link + social icon hover
   border:  string  // dividers between footer sections
 }
 
@@ -387,7 +381,6 @@ export type StorefrontView = {
   socialYoutube: string
   socialTwitter: string
   footerColumns: FooterColumn[]
-  newsletter: Newsletter
   paymentMethods: PaymentMethod[]
 }
 
@@ -419,12 +412,6 @@ export const DEFAULT_PRODUCTS_SECTION: ProductsSection = {
   heading:     "",
   subheading:  "",
   accentColor: "",
-}
-
-export const DEFAULT_NEWSLETTER: Newsletter = {
-  enabled: false,
-  heading: "Stay in the loop",
-  subheading: "Get new arrivals and exclusive offers in your inbox.",
 }
 
 export const DEFAULT_FOOTER_COLUMNS: FooterColumn[] = [
@@ -509,15 +496,6 @@ function readProductsSection(hero: Record<string, unknown> | null | undefined): 
     heading:     str(p, "heading")     ?? DEFAULT_PRODUCTS_SECTION.heading,
     subheading:  str(p, "subheading")  ?? DEFAULT_PRODUCTS_SECTION.subheading,
     accentColor: str(p, "accentColor") ?? "",
-  }
-}
-
-function readNewsletter(footer: Record<string, unknown> | null | undefined): Newsletter {
-  const n = obj(footer, "newsletter") ?? {}
-  return {
-    enabled:    bool(n, "enabled")    ?? DEFAULT_NEWSLETTER.enabled,
-    heading:    str(n, "heading")     ?? DEFAULT_NEWSLETTER.heading,
-    subheading: str(n, "subheading")  ?? DEFAULT_NEWSLETTER.subheading,
   }
 }
 
@@ -719,10 +697,10 @@ export function storeToView(store: Store, opts: { ctaHref?: string } = {}): Stor
     socialFacebook:  store.facebook  ?? "",
     socialInstagram: store.instagram ?? "",
     socialTiktok:    store.tiktok    ?? "",
-    socialYoutube:   str(footer, "socialYoutube") ?? "",
-    socialTwitter:   str(footer, "socialTwitter") ?? "",
+    // Prefer top-level column (post-migration), fall back to JSONB for old saves
+    socialYoutube:   store.youtube ?? str(footer, "socialYoutube") ?? "",
+    socialTwitter:   store.twitter ?? str(footer, "socialTwitter") ?? "",
     footerColumns:   readFooterColumns(footer),
-    newsletter:      readNewsletter(footer),
     paymentMethods:  readPaymentMethods(footer),
   }
 }
@@ -1833,14 +1811,14 @@ export function StorefrontFooter({ view, soukyHref = "/" }: { view: StorefrontVi
   const {
     storeName, footerAbout, footerEmail, footerPhone, footerWhatsapp, footerAddress, businessHours,
     showSocial, socialFacebook, socialInstagram, socialTiktok, socialYoutube, socialTwitter,
-    primaryColor, rtl, showFooter, footerColumns, newsletter, paymentMethods,
+    primaryColor, rtl, showFooter, footerColumns, paymentMethods,
   } = view
 
   const hasContact = !!(footerEmail || footerPhone || footerWhatsapp || footerAddress || businessHours)
   const hasSocials = !!(socialFacebook || socialInstagram || socialTiktok || socialYoutube || socialTwitter || footerWhatsapp)
   const hasColumns = footerColumns.length > 0
 
-  const showRich = showFooter && (footerAbout || hasContact || hasColumns || newsletter.enabled || paymentMethods.length > 0)
+  const showRich = showFooter && (footerAbout || hasContact || hasColumns || paymentMethods.length > 0)
   const tokens = themeTokens(view.theme)
   const headingStyle: React.CSSProperties | undefined =
     view.fonts.headingFont && view.fonts.headingFont !== "system"
@@ -1962,52 +1940,6 @@ export function StorefrontFooter({ view, soukyHref = "/" }: { view: StorefrontVi
             </div>
           ))}
 
-          {/* Newsletter */}
-          {newsletter.enabled && (
-            <div className={cn("space-y-4 md:col-span-2 lg:col-span-1", center && "flex flex-col items-center")}>
-              <h3 className="text-xs font-bold uppercase tracking-widest" style={h3Style}>
-                {newsletter.heading || (rtl ? "اشترك" : "Subscribe")}
-              </h3>
-              {newsletter.subheading && (
-                <p className="text-sm leading-relaxed">{newsletter.subheading}</p>
-              )}
-              <form
-                className={cn("flex flex-col sm:flex-row gap-2 w-full", center && "max-w-sm")}
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  const input = (e.currentTarget.elements.namedItem("email") as HTMLInputElement | null)
-                  if (input) input.value = ""
-                }}
-              >
-                <div className="relative flex-1">
-                  <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-60" />
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    placeholder={rtl ? "بريدك الإلكتروني" : "your@email.com"}
-                    className={cn(
-                      "w-full pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2",
-                      tokens.radiusInput,
-                    )}
-                    style={{
-                      backgroundColor: inputBg,
-                      borderWidth: 1,
-                      borderColor: inputBorder,
-                      color: theme.heading,
-                    }}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className={cn("px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-opacity", tokens.radiusInput)}
-                  style={{ backgroundColor: theme.accent }}
-                >
-                  {rtl ? "اشترك" : "Join"}
-                </button>
-              </form>
-            </div>
-          )}
         </div>
       )}
 

@@ -97,6 +97,32 @@ async function applyProductCustomizationsColumn(sequelize) {
   console.log("[migrate] products.customizations ensured");
 }
 
+async function applyUserPasswordVersionColumn(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "password_version" INTEGER NOT NULL DEFAULT 1`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] users.password_version ensured");
+}
+
+async function applyStoreSocialColumns(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "youtube" VARCHAR(255)`,
+    { type: QueryTypes.RAW },
+  );
+  await sequelize.query(
+    `ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "twitter" VARCHAR(255)`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] stores.youtube + stores.twitter ensured");
+}
+
 async function applyPasswordResetsTable(sequelize) {
   const { QueryTypes } = require("sequelize");
 
@@ -128,4 +154,6 @@ module.exports = {
   applyProductColorsColumn,
   applyProductCustomizationsColumn,
   applyPasswordResetsTable,
+  applyStoreSocialColumns,
+  applyUserPasswordVersionColumn,
 };

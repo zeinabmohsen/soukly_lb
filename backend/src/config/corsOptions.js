@@ -24,10 +24,11 @@ const corsOptions = {
     if (allowedOrigins.includes(origin) || vercelPreviewPattern.test(origin)) {
       return callback(null, true);
     }
-    return callback(
-      new Error("CORS policy does not allow access from this origin."),
-      false
-    );
+    // Bad origin: don't throw (that becomes a 500). Instead, omit CORS headers
+    // — the browser will block the response on the client side. State-changing
+    // requests are also caught downstream by the csrfOrigin middleware, which
+    // returns a clean 403 ORIGIN_REJECTED.
+    return callback(null, false);
   },
   credentials: true,
 };

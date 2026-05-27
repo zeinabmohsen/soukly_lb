@@ -48,6 +48,9 @@ function signAccessToken(user) {
       is_seller: user.is_seller,
       seller_status: user.seller_status,
       is_admin: user.is_admin,
+      // Bumps whenever the user changes their password — middleware rejects
+      // any token whose pwd_v doesn't match the user's current value.
+      pwd_v: user.password_version ?? 1,
     },
     jwtSecret,
     { expiresIn: ACCESS_EXPIRES_IN }
@@ -95,7 +98,11 @@ function parseRefreshToken(refreshToken) {
 }
 
 function getRefreshTokenFromRequest(req) {
-  return req.body?.refresh_token || req.cookies?.[REFRESH_COOKIE_NAME] || null;
+  // Cookie-only — the refresh token is httpOnly for a reason. Accepting it
+  // from the body would defeat that protection (any XSS could read & re-use
+  // it). Browsers send the cookie automatically on /auth/refresh + /auth/logout
+  // because both are same-origin and live under the cookie's path scope.
+  return req.cookies?.[REFRESH_COOKIE_NAME] || null;
 }
 
 function formatUser(user) {
@@ -196,7 +203,7 @@ const refreshToken = asyncHandler(async (req, res) => {
   const accessToken = signAccessToken(user);
   const rawRotated = crypto.randomBytes(32).toString("hex");
   const rotated = await rotateSession(session, rawRotated);
-  setRefreshCookie(res, rotated.refreshToken, rotated.expiresAt);
+  setRefreshCookie(req, res, rotated.refreshToken, rotated.expiresAt);
 
   res.status(200).json({
     user: formatUser(user),

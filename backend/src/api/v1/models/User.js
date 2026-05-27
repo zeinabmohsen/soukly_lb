@@ -66,6 +66,15 @@ User.init(
       allowNull: true,
       defaultValue: null,
     },
+    // Bumped every time the password changes. Encoded into the JWT's `pwd_v`
+    // claim and re-checked by auth middleware on every request — so changing
+    // the password instantly invalidates every existing access token, not just
+    // refresh sessions.
+    password_version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    },
   },
   {
     sequelize,
@@ -79,6 +88,9 @@ User.init(
       beforeUpdate: async (user) => {
         if (user.changed("password")) {
           user.password = await bcrypt.hash(user.password, 12);
+          // Bump the version so access tokens issued against the old password
+          // immediately fail the middleware check on the next request.
+          user.password_version = (user.password_version || 1) + 1;
         }
       },
     },

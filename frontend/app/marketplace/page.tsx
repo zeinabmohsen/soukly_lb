@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
-import { Search, TrendingUp, StoreIcon, SlidersHorizontal, X, Star, MapPin, Loader2 } from "lucide-react"
+import { Search, TrendingUp, StoreIcon, SlidersHorizontal, X, Star, MapPin, Loader2, ArrowRight } from "lucide-react"
 
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
@@ -358,16 +358,35 @@ export default function MarketplacePage() {
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between pt-2 md:pt-4 border-t mt-auto">
-                            <span className="text-xs md:text-sm text-muted-foreground line-clamp-1">
-                              {store.category?.name ?? ""}
-                            </span>
-                            <Button
-                              size="sm"
-                              className="shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors text-xs md:text-sm px-3 py-1"
-                            >
-                              Visit
-                            </Button>
+                          <div className="pt-2 md:pt-4 border-t mt-auto">
+                            {/* Mobile: stack category above a full-width Visit CTA */}
+                            <div className="md:hidden space-y-2">
+                              {store.category?.name && (
+                                <span className="block text-[11px] text-muted-foreground line-clamp-1">
+                                  {store.category.name}
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                className="w-full gap-1 h-9 text-xs font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                              >
+                                Visit Store
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                            {/* Desktop: keep the side-by-side layout */}
+                            <div className="hidden md:flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground line-clamp-1">
+                                {store.category?.name ?? ""}
+                              </span>
+                              <Button
+                                size="sm"
+                                className="shrink-0 gap-1 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                              >
+                                Visit
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </Card>

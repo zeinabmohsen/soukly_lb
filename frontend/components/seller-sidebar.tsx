@@ -5,20 +5,19 @@ import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import Link from "next/link"
 import {
-  Store, Package, BarChart3, ShoppingBag, Boxes, Tag, Home,
-  Settings, HelpCircle, Sparkles, LogOut, Star, ChevronRight, LayoutList,
+  Store, Package, BarChart3, ShoppingBag, Home,
+  Settings, HelpCircle, Sparkles, LogOut, Star, ChevronRight,
   CreditCard, X,
 } from "lucide-react"
 
+// Categories live as a tab inside /seller/products now — not a sidebar entry.
+// Inventory + Promotions were removed (no backend, were misleading mocks).
 const navItems = [
   { icon: Home,        label: "Overview",      href: "/seller/dashboard"     },
   { icon: Package,     label: "Products",      href: "/seller/products"      },
   { icon: ShoppingBag, label: "Orders",        href: "/seller/orders"        },
   { icon: BarChart3,   label: "Analytics",     href: "/seller/analytics"     },
-  { icon: Boxes,       label: "Inventory",     href: "/seller/inventory"     },
-  { icon: Tag,         label: "Promotions",    href: "/seller/promotions"    },
   { icon: Store,       label: "Store Builder", href: "/seller/store-builder" },
-  { icon: LayoutList,  label: "Categories",    href: "/seller/categories"    },
   { icon: CreditCard,  label: "Subscription",  href: "/seller/subscription"  },
 ]
 
@@ -115,7 +114,7 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 py-2 space-y-0.5 overflow-y-auto overscroll-contain">
         <p className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
           Navigation
         </p>

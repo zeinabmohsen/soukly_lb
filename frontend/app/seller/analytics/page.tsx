@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -14,11 +13,8 @@ import {
   ShoppingCart,
   Users,
   Receipt,
-  ArrowLeft,
-  Sparkles,
   Calendar,
 } from "lucide-react"
-import Link from "next/link"
 import {
   LineChart,
   Line,
@@ -129,7 +125,7 @@ export default function AnalyticsPage() {
   // ── KPIs (current vs previous) ──────────────────────────────────────────────
   const kpis = useMemo(() => {
     const sumRevenue = (list: Order[]) =>
-      list.filter(isPaid).reduce((s, o) => s + Number(o.total_amount), 0)
+      list.filter(isPaid).reduce((s, o) => s + (Number(o.total_amount) || 0), 0)
     const uniqueBuyers = (list: Order[]) => new Set(list.map((o) => o.buyer_id)).size
 
     const currRev   = sumRevenue(splitOrders.current)
@@ -190,7 +186,7 @@ export default function AnalyticsPage() {
         : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
       const b = buckets[key]
       if (!b) continue
-      if (isPaid(o)) b.revenue += Number(o.total_amount)
+      if (isPaid(o)) b.revenue += (Number(o.total_amount) || 0)
       b.orders += 1
     }
 
@@ -209,7 +205,7 @@ export default function AnalyticsPage() {
         const name = item.product_snapshot.name
         const existing = byProduct.get(key) ?? { name, sales: 0, revenue: 0 }
         existing.sales   += item.quantity
-        existing.revenue += Number(item.unit_price) * item.quantity
+        existing.revenue += (Number(item.unit_price) || 0) * (item.quantity || 0)
         byProduct.set(key, existing)
       }
     }
@@ -229,7 +225,7 @@ export default function AnalyticsPage() {
         const categoryName = item.product_id
           ? productCategoryMap.get(item.product_id) ?? "Uncategorized"
           : "Uncategorized"
-        const revenue = Number(item.unit_price) * item.quantity
+        const revenue = (Number(item.unit_price) || 0) * (item.quantity || 0)
         totals.set(categoryName, (totals.get(categoryName) ?? 0) + revenue)
       }
     }
@@ -245,36 +241,30 @@ export default function AnalyticsPage() {
   const showEmpty = !ordersLoading && splitOrders.current.length === 0
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/seller/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">Analytics</span>
-            </div>
-          </div>
-          <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7days">Last 7 days</SelectItem>
-              <SelectItem value="30days">Last 30 days</SelectItem>
-              <SelectItem value="3months">Last 3 months</SelectItem>
-              <SelectItem value="year">This year</SelectItem>
-            </SelectContent>
-          </Select>
+    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Analytics</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Order-based metrics — revenue, orders, buyers, top products.
+            <span className="block text-xs mt-0.5">Page views and visitor traffic are not tracked yet.</span>
+          </p>
         </div>
-      </header>
+        <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
+          <SelectTrigger className="w-[180px]">
+            <Calendar className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7days">Last 7 days</SelectItem>
+            <SelectItem value="30days">Last 30 days</SelectItem>
+            <SelectItem value="3months">Last 3 months</SelectItem>
+            <SelectItem value="year">This year</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <KpiCard
             label="Total Revenue"
@@ -295,7 +285,7 @@ export default function AnalyticsPage() {
             previousLabel={`vs ${kpis.orders.prev} last period`}
           />
           <KpiCard
-            label="Active Customers"
+            label="Unique Buyers"
             icon={Users}
             iconBg="bg-purple-100"
             iconColor="text-purple-600"

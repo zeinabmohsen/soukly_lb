@@ -103,7 +103,7 @@ const updateMyStore = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Store not found" });
   }
 
-  const { global_category_id, name, description, location, whatsapp, instagram, facebook, tiktok, logo_url, cover_url, hero, footer } = req.body;
+  const { global_category_id, name, description, location, whatsapp, instagram, facebook, tiktok, youtube, twitter, logo_url, cover_url, hero, footer } = req.body;
 
   const updated = await updateStore(store.id, {
     global_category_id,
@@ -114,6 +114,8 @@ const updateMyStore = asyncHandler(async (req, res) => {
     instagram,
     facebook,
     tiktok,
+    youtube,
+    twitter,
     logo_url,
     cover_url,
     hero,

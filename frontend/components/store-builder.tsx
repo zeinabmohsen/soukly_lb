@@ -54,7 +54,7 @@ import {
   Search,
   Package,
 } from "lucide-react"
-import { useGetMyStoreQuery, useUpdateMyStoreMutation, useUploadStoreImageMutation } from "@/store/api/storeApi"
+import { useGetMyStoreQuery, useUpdateMyStoreMutation, useUploadStoreImageMutation, type Store as StoreType } from "@/store/api/storeApi"
 import { ProductCard } from "@/components/shared/product-card"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -77,7 +77,6 @@ import {
   DEFAULT_SECONDARY_CTA,
   DEFAULT_ABOUT,
   DEFAULT_PRODUCTS_SECTION,
-  DEFAULT_NEWSLETTER,
   DEFAULT_NAV,
   DEFAULT_THEME,
   DEFAULT_FONTS,
@@ -186,7 +185,6 @@ const DEFAULT_DATA: StoreData = {
   socialYoutube: "",
   socialTwitter: "",
   footerColumns: [],
-  newsletter: { ...DEFAULT_NEWSLETTER },
   paymentMethods: [],
 }
 
@@ -252,6 +250,8 @@ export default function StoreBuilder() {
         instagram:   storeData.socialInstagram || null,
         facebook:    storeData.socialFacebook  || null,
         tiktok:      storeData.socialTiktok    || null,
+        youtube:     storeData.socialYoutube   || null,
+        twitter:     storeData.socialTwitter   || null,
         whatsapp:    storeData.footerWhatsapp  || null,
         hero: {
           tagline:        storeData.tagline,
@@ -288,10 +288,9 @@ export default function StoreBuilder() {
           socialYoutube:  storeData.socialYoutube,
           socialTwitter:  storeData.socialTwitter,
           footerColumns:  storeData.footerColumns,
-          newsletter:     storeData.newsletter,
           paymentMethods: storeData.paymentMethods,
         },
-      } as never).unwrap()
+      } satisfies Partial<StoreType>).unwrap()
       // Mark current state as the saved snapshot so the dirty pill flips back to "Saved".
       savedSnapshotRef.current = JSON.stringify(storeData)
       toast({ title: "Store saved!", description: "Your storefront has been updated." })
@@ -343,22 +342,22 @@ export default function StoreBuilder() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Save status pill — visible on md+ to avoid header crowding */}
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium">
+            {/* Save status pill — label hidden on small screens, dot+icon stays */}
+            <div className="flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-full text-[11px] font-medium">
               {isSaving ? (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                  <span className="text-muted-foreground">Saving…</span>
+                  <span className="text-muted-foreground hidden md:inline">Saving…</span>
                 </>
               ) : isDirty ? (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  <span className="text-amber-700">Unsaved</span>
+                  <span className="text-amber-700 hidden md:inline">Unsaved</span>
                 </>
               ) : savedSnapshotRef.current ? (
                 <>
                   <Check className="w-3 h-3 text-emerald-600" />
-                  <span className="text-emerald-700">Saved</span>
+                  <span className="text-emerald-700 hidden md:inline">Saved</span>
                 </>
               ) : null}
             </div>
@@ -1253,7 +1252,7 @@ export default function StoreBuilder() {
             <SectionCard
               icon={Layout}
               title="Footer"
-              hint="Bottom-of-page section — style, content, social, columns, newsletter, payment"
+              hint="Bottom-of-page section — style, content, social, columns, payment"
               enabled={storeData.showFooter}
               onToggle={(v) => update("showFooter", v)}
             >
@@ -1467,30 +1466,6 @@ export default function StoreBuilder() {
                     columns={storeData.footerColumns}
                     onChange={(cols) => update("footerColumns", cols)}
                   />
-                </SectionCard>
-
-                <SectionCard
-                  icon={Mail}
-                  title="Newsletter"
-                  hint="Show an email signup in your footer. Email collection isn't wired to a backend yet — UI only."
-                  enabled={storeData.newsletter.enabled}
-                  onToggle={(v) => update("newsletter", { ...storeData.newsletter, enabled: v })}
-                  onReset={() => update("newsletter", { ...DEFAULT_NEWSLETTER, enabled: true })}
-                >
-                  <Field label="Heading">
-                    <Input
-                      value={storeData.newsletter.heading}
-                      onChange={(e) => update("newsletter", { ...storeData.newsletter, heading: e.target.value })}
-                      placeholder="Stay in the loop"
-                    />
-                  </Field>
-                  <Field label="Subheading">
-                    <Input
-                      value={storeData.newsletter.subheading}
-                      onChange={(e) => update("newsletter", { ...storeData.newsletter, subheading: e.target.value })}
-                      placeholder="Get new arrivals and exclusive offers in your inbox."
-                    />
-                  </Field>
                 </SectionCard>
 
                 <SectionCard
@@ -2459,7 +2434,7 @@ function VideoUploadField({
   )
 }
 
-// ─── Toggleable section card (used by Sections tab + Newsletter) ─────────────
+// ─── Toggleable section card (used by Sections tab) ─────────────────────────
 
 function SectionCard({
   icon: Icon,

@@ -82,6 +82,14 @@ Store.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    youtube: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    twitter: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     is_approved: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

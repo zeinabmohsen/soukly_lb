@@ -32,6 +32,8 @@ export interface Store {
   instagram: string | null
   facebook: string | null
   tiktok: string | null
+  youtube: string | null
+  twitter: string | null
   is_approved: boolean
   rating: number
   hero: Record<string, unknown> | null

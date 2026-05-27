@@ -92,6 +92,7 @@ export function AdvancedSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
           className="pl-10 pr-10"
         />
         {query && (
@@ -107,8 +108,8 @@ export function AdvancedSearch() {
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <Card className="absolute top-full left-0 right-0 mt-2 p-4 z-50 max-h-[500px] overflow-y-auto">
+          <div className="fixed inset-0 z-[55]" onClick={() => setIsOpen(false)} />
+          <Card className="absolute top-full left-0 right-0 mt-2 p-4 z-[60] max-h-[min(500px,60vh)] overflow-y-auto shadow-xl border-border/80">
             {query.length === 0 ? (
               <div className="space-y-4">
                 {recentSearches.length > 0 && (

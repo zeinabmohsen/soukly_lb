@@ -269,44 +269,8 @@ function MobileGuestMenu({
 
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-        {/* Hero */}
-        <div className="relative px-5 pt-6 pb-5 bg-gradient-to-br from-primary/15 via-accent/8 to-transparent border-b border-border/60">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Welcome to Soukly
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Lebanon&apos;s marketplace for handpicked goods.
-          </p>
-        </div>
-
         <div className="px-4 py-5 space-y-6">
-          {/* Auth actions — visually distinct */}
-          <div className="space-y-3">
-            <Link href="/login" onClick={onNavigate} className="block">
-              <Button className="w-full gap-2 h-12 text-[15px] font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-accent hover:opacity-95">
-                <UserIcon className="h-5 w-5" />
-                Sign in to your account
-              </Button>
-            </Link>
-
-            <Link href="/become-seller" onClick={onNavigate} className="block group">
-              <div className="relative w-full rounded-xl border-2 border-dashed border-primary/40 bg-primary/[0.03] hover:bg-primary/[0.06] hover:border-primary/60 active:scale-[0.99] transition-all p-3.5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-[15px] font-semibold text-foreground leading-tight">Start Selling</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Open your store on Soukly</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
-              </div>
-            </Link>
-          </div>
-
-          {/* Trending — visible inline */}
+          {/* 1. Trending */}
           <div>
             <p className="px-2 mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -326,6 +290,42 @@ function MobileGuestMenu({
             </div>
           </div>
 
+          {/* 2. Welcome */}
+          <div className="relative rounded-2xl px-5 py-5 bg-gradient-to-br from-primary/15 via-accent/8 to-transparent border border-primary/15">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Welcome to Soukly
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Lebanon&apos;s marketplace for handpicked goods.
+            </p>
+          </div>
+
+          {/* 3. Sign in */}
+          <Link href="/login" onClick={onNavigate} className="block">
+            <Button className="w-full gap-2 h-12 text-[15px] font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-accent hover:opacity-95">
+              <UserIcon className="h-5 w-5" />
+              Sign in to your account
+            </Button>
+          </Link>
+
+          {/* 4. Start Selling */}
+          <Link href="/become-seller" onClick={onNavigate} className="block group">
+            <div className="relative w-full rounded-xl border-2 border-dashed border-primary/40 bg-primary/[0.03] hover:bg-primary/[0.06] hover:border-primary/60 active:scale-[0.99] transition-all p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[15px] font-semibold text-foreground leading-tight">Start Selling</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Open your store on Soukly</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+            </div>
+          </Link>
+
+          {/* 5. Browse */}
           <MobileMenuSection title="Browse" rows={browseRows} onNavigate={onNavigate} />
         </div>
       </div>

@@ -60,48 +60,47 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
       />
 
     <aside
-      className={`w-64 fixed inset-y-0 left-0 z-40 flex flex-col bg-background border-r border-border transition-transform duration-300 ease-out lg:translate-x-0 ${
+      className={`w-72 lg:w-64 fixed inset-y-0 left-0 z-40 flex flex-col bg-background border-r border-border shadow-2xl lg:shadow-none transition-transform duration-300 ease-out lg:translate-x-0 ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      {/* Mobile-only close button (top-right) */}
-      <button
-        onClick={onClose}
-        className="lg:hidden absolute top-3 right-3 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground z-10"
-        aria-label="Close menu"
-      >
-        <X className="w-4 h-4" />
-      </button>
-
-
-      {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b border-border">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="relative">
+      {/* Header: logo + mobile close */}
+      <div className="flex-shrink-0 h-16 flex items-center justify-between gap-2 px-4 lg:px-5 border-b border-border">
+        <Link href="/" className="flex items-center gap-2 group min-w-0">
+          <div className="relative flex-shrink-0">
             <Sparkles className="h-6 w-6 text-primary transition-transform group-hover:rotate-12" />
             <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full scale-0 group-hover:scale-100 transition-transform" />
           </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent truncate">
             Soukly
           </span>
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
             Seller
           </span>
         </Link>
+        <button
+          onClick={onClose}
+          className="lg:hidden flex-shrink-0 w-9 h-9 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
+          aria-label="Close menu"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Store card */}
-      <div className="mx-3 mt-4 mb-2 rounded-2xl p-3 bg-primary/5 border border-primary/15">
+      <div className="flex-shrink-0 mx-3 mt-4 mb-2 rounded-2xl p-3 bg-gradient-to-br from-primary/8 via-accent/5 to-transparent border border-primary/15">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-lg shadow-primary/20">
-            {initials}
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-primary/20">
+              {initials}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-foreground text-sm font-semibold truncate">
               {user?.name}
             </p>
             <div className="flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
               <span className="text-muted-foreground text-[11px]">Active store</span>
             </div>
           </div>
@@ -160,8 +159,8 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
       </nav>
 
       {/* User */}
-      <div className="px-3 pb-4 pt-3 border-t border-border">
-        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/50 border border-border">
+      <div className="flex-shrink-0 px-3 pb-4 pt-3 border-t border-border">
+        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/60">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {initials}
           </div>
@@ -172,9 +171,10 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
           <button
             onClick={logoutAsync}
             title="Sign out"
-            className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/10 flex-shrink-0"
+            aria-label="Sign out"
+            className="text-muted-foreground hover:text-destructive transition-colors p-2 rounded-lg hover:bg-destructive/10 flex-shrink-0"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>

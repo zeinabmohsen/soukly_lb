@@ -290,38 +290,58 @@ function MobileGuestMenu({
             </div>
           </div>
 
-          {/* 2. Welcome */}
-          <div className="relative rounded-2xl px-5 py-5 bg-gradient-to-br from-primary/15 via-accent/8 to-transparent border border-primary/15">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Welcome to Soukly
-              </span>
+          {/* 2. Welcome — centered, breathable hero */}
+          <div className="text-center pt-2 pb-1">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 via-accent/15 to-transparent ring-1 ring-primary/15 mb-3">
+              <Sparkles className="h-7 w-7 text-primary" />
             </div>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-xl font-bold mb-1 leading-tight">
+              Welcome to{" "}
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Soukly
+              </span>
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">
               Lebanon&apos;s marketplace for handpicked goods.
             </p>
           </div>
 
-          {/* 3. Sign in */}
+          {/* 3. Sign in — primary gradient with chevron */}
           <Link href="/login" onClick={onNavigate} className="block">
-            <Button className="w-full gap-2 h-12 text-[15px] font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-accent hover:opacity-95">
-              <UserIcon className="h-5 w-5" />
-              Sign in to your account
+            <Button className="w-full h-12 px-4 text-[15px] font-semibold bg-gradient-to-r from-primary to-accent hover:opacity-95 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all">
+              <UserIcon className="h-4 w-4" />
+              <span className="flex-1 text-center">Sign in</span>
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
 
-          {/* 4. Start Selling */}
+          {/* Divider */}
+          <div className="flex items-center gap-3 -my-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* 4. Start Selling — invitational card with Free badge */}
           <Link href="/become-seller" onClick={onNavigate} className="block group">
-            <div className="relative w-full rounded-xl border-2 border-dashed border-primary/40 bg-primary/[0.03] hover:bg-primary/[0.06] hover:border-primary/60 active:scale-[0.99] transition-all p-3.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="h-5 w-5 text-primary" />
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card hover:border-primary/40 hover:bg-primary/[0.02] active:scale-[0.99] transition-all p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/15 via-accent/10 to-transparent ring-1 ring-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Store className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[15px] font-semibold text-foreground leading-tight">Start Selling</p>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      Free
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    Open your store and reach buyers across Lebanon
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-[15px] font-semibold text-foreground leading-tight">Start Selling</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Open your store on Soukly</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
             </div>
           </Link>
 

@@ -2,16 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Search, X, TrendingUp, Clock, Loader2, Package, Store as StoreIcon } from "lucide-react"
+import { Search, X, Clock, Loader2, Package, Store as StoreIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { useGetProductsQuery } from "@/store/api/productApi"
 import { useGetStoresQuery } from "@/store/api/storeApi"
 import { useGetCategoriesQuery } from "@/store/api/categoriesApi"
 
 const RECENT_LIMIT = 5
-const TRENDING = ["Silk Scarves", "Pottery", "Olive Oil", "Fashion", "Electronics"]
 
 export function AdvancedSearch() {
   const router = useRouter()
@@ -111,57 +109,40 @@ export function AdvancedSearch() {
           <div className="fixed inset-0 z-[55]" onClick={() => setIsOpen(false)} />
           <Card className="absolute top-full left-0 right-0 mt-2 p-4 z-[60] max-h-[min(500px,60vh)] overflow-y-auto shadow-xl border-border/80">
             {query.length === 0 ? (
-              <div className="space-y-4">
-                {recentSearches.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-sm flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Recent
-                      </h4>
-                      <button
-                        onClick={() => {
-                          setRecentSearches([])
-                          localStorage.removeItem("soukly_recent_searches")
-                        }}
-                        className="text-sm text-muted-foreground hover:text-foreground"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="space-y-1">
-                      {recentSearches.map((search, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setQuery(search)}
-                          className="block w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm"
-                        >
-                          {search}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
+              recentSearches.length > 0 ? (
                 <div>
-                  <h4 className="font-semibold text-sm flex items-center gap-2 mb-3">
-                    <TrendingUp className="w-4 h-4" />
-                    Trending
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {TRENDING.map((trend) => (
-                      <Badge
-                        key={trend}
-                        variant="secondary"
-                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-                        onClick={() => setQuery(trend)}
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Recent
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setRecentSearches([])
+                        localStorage.removeItem("soukly_recent_searches")
+                      }}
+                      className="text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {recentSearches.map((search, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setQuery(search)}
+                        className="block w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors text-sm"
                       >
-                        {trend}
-                      </Badge>
+                        {search}
+                      </button>
                     ))}
                   </div>
                 </div>
-              </div>
+              ) : (
+                <p className="text-center py-6 text-sm text-muted-foreground">
+                  Type to search products, stores, and categories.
+                </p>
+              )
             ) : isFetching ? (
               <div className="flex items-center justify-center py-10 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />

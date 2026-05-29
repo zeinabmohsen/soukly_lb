@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge"
 import {
   Menu, X, Sparkles, ShoppingCart, LogOut, Store, LayoutDashboard, Package,
   ChevronDown, ChevronRight, BarChart3, User as UserIcon, Heart, ListOrdered, Shield, Clock,
-  TrendingUp, ArrowRight,
+  ArrowRight, Home, Tag, HelpCircle, Settings, Info,
   type LucideIcon,
 } from "lucide-react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import {
   DropdownMenu,
@@ -237,117 +238,147 @@ function MobileAuthedMenu({
   )
 }
 
-const TRENDING_TAGS = ["Silk Scarves", "Pottery", "Olive Oil", "Fashion", "Electronics"]
-
 function MobileGuestMenu({
   onNavigate,
 }: {
   onNavigate: () => void
 }) {
-  const browseRows: MenuRow[] = [
-    { href: "/marketplace", label: "Marketplace", icon: Store },
-    { href: "/products", label: "All Products", icon: Package },
-    { href: "/pricing", label: "Pricing", icon: Sparkles },
+  const pathname = usePathname()
+
+  const mainNav: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: "/",            label: "Home",         icon: Home },
+    { href: "/marketplace", label: "Marketplace",  icon: Store },
+    { href: "/products",    label: "All Products", icon: Package },
+    { href: "/stores",      label: "Top Sellers",  icon: Sparkles },
+    { href: "/pricing",     label: "Pricing",      icon: Tag },
+    { href: "/wishlist",    label: "Favorites",    icon: Heart },
   ]
 
+  const footerNav: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: "#", label: "Help & Support", icon: HelpCircle },
+    { href: "#", label: "Settings",       icon: Settings },
+    { href: "#", label: "About Soukly",   icon: Info },
+  ]
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname?.startsWith(href) ?? false
+
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Sticky top: search + close */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-3 border-b border-border/40 bg-background">
-        <div className="flex-1 min-w-0">
-          <AdvancedSearch />
+    <div className="flex flex-col h-full min-h-0 bg-background">
+      {/* Header: logo + tagline + close */}
+      <div className="flex-shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-4">
+        <div className="min-w-0">
+          <Link href="/" onClick={onNavigate} className="inline-flex items-start gap-0.5">
+            <span className="text-3xl font-bold text-foreground tracking-tight leading-none">
+              Soukly
+            </span>
+            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+          </Link>
+          <p className="text-sm text-muted-foreground mt-2 leading-snug">
+            Lebanon&apos;s marketplace for handpicked goods
+          </p>
         </div>
         <button
           type="button"
           onClick={onNavigate}
-          className="flex-shrink-0 w-10 h-10 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
           aria-label="Close menu"
+          className="flex-shrink-0 w-10 h-10 rounded-full bg-muted/60 hover:bg-muted text-foreground flex items-center justify-center transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-        <div className="px-4 py-5 space-y-6">
-          {/* 1. Trending */}
-          <div>
-            <p className="px-2 mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
-              Trending Now
-            </p>
-            <div className="flex flex-wrap gap-2 px-2">
-              {TRENDING_TAGS.map((tag) => (
-                <Link
-                  key={tag}
-                  href={`/products?search=${encodeURIComponent(tag)}`}
-                  onClick={onNavigate}
-                  className="inline-flex items-center px-3 py-1.5 rounded-full text-[13px] font-medium bg-primary/8 text-primary border border-primary/20 hover:bg-primary/15 active:scale-95 transition-all"
-                >
-                  {tag}
-                </Link>
-              ))}
-            </div>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-4">
+        {/* Sign in / Sign up card */}
+        <Link
+          href="/login"
+          onClick={onNavigate}
+          className="flex items-center gap-3 px-3 py-3 rounded-2xl active:bg-muted/60 hover:bg-muted/40 transition-colors"
+        >
+          <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+            <UserIcon className="h-5 w-5 text-muted-foreground" />
           </div>
-
-          {/* 2. Welcome — centered, breathable hero */}
-          <div className="text-center pt-2 pb-1">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 via-accent/15 to-transparent ring-1 ring-primary/15 mb-3">
-              <Sparkles className="h-7 w-7 text-primary" />
-            </div>
-            <h2 className="text-xl font-bold mb-1 leading-tight">
-              Welcome to{" "}
-              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Soukly
-              </span>
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-[260px] mx-auto leading-relaxed">
-              Lebanon&apos;s marketplace for handpicked goods.
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-semibold text-foreground leading-tight">
+              Sign in / Sign up
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 leading-snug">
+              Access your orders, favorites and more.
             </p>
           </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground/60 flex-shrink-0" />
+        </Link>
 
-          {/* 3. Sign in — primary gradient with chevron */}
-          <Link href="/login" onClick={onNavigate} className="block">
-            <Button className="w-full h-12 px-4 text-[15px] font-semibold bg-gradient-to-r from-primary to-accent hover:opacity-95 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all">
-              <UserIcon className="h-4 w-4" />
-              <span className="flex-1 text-center">Sign in</span>
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
+        <div className="h-px bg-border/60 my-2 mx-2" />
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 -my-2">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* 4. Start Selling — invitational card with Free badge */}
-          <Link href="/become-seller" onClick={onNavigate} className="block group">
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card hover:border-primary/40 hover:bg-primary/[0.02] active:scale-[0.99] transition-all p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/15 via-accent/10 to-transparent ring-1 ring-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Store className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-[15px] font-semibold text-foreground leading-tight">Start Selling</p>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                      Free
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-snug">
-                    Open your store and reach buyers across Lebanon
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-              </div>
-            </div>
-          </Link>
-
-          {/* 5. Browse */}
-          <MobileMenuSection title="Browse" rows={browseRows} onNavigate={onNavigate} />
+        {/* Main nav rows */}
+        <div className="space-y-0.5">
+          {mainNav.map((item) => {
+            const Icon = item.icon
+            const active = isActive(item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={`flex items-center gap-4 px-3 py-3.5 rounded-2xl transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground active:bg-muted/60 hover:bg-muted/40"
+                }`}
+              >
+                <Icon className={`h-5 w-5 flex-shrink-0 ${active ? "text-primary" : "text-foreground/70"}`} strokeWidth={1.75} />
+                <span className="flex-1 text-[15px] font-medium">{item.label}</span>
+                <ChevronRight className={`h-4 w-4 flex-shrink-0 ${active ? "text-primary/60" : "text-muted-foreground/50"}`} />
+              </Link>
+            )
+          })}
         </div>
+
+        {/* Start Selling — big inviting card */}
+        <Link href="/become-seller" onClick={onNavigate} className="block mt-4 mb-2">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-accent/6 to-transparent border border-primary/15 p-4 flex items-center gap-3 active:scale-[0.99] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/25 via-accent/15 to-transparent ring-1 ring-primary/20 flex items-center justify-center flex-shrink-0">
+              <Store className="h-7 w-7 text-primary" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-bold text-foreground leading-tight">Start Selling</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                Open your store and reach thousands of buyers.
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 shadow-md shadow-primary/30">
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </div>
+        </Link>
+
+        <div className="h-px bg-border/60 my-3 mx-2" />
+
+        {/* Footer nav rows */}
+        <div className="space-y-0.5">
+          {footerNav.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={onNavigate}
+                className="flex items-center gap-4 px-3 py-3.5 rounded-2xl text-foreground active:bg-muted/60 hover:bg-muted/40 transition-colors"
+              >
+                <Icon className="h-5 w-5 flex-shrink-0 text-foreground/70" strokeWidth={1.75} />
+                <span className="flex-1 text-[15px] font-medium">{item.label}</span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground/50" />
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Version footer */}
+      <div className="flex-shrink-0 px-5 py-3 border-t border-border/60">
+        <p className="text-[11px] text-muted-foreground/60">v1.0.0</p>
       </div>
     </div>
   )

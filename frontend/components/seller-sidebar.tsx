@@ -12,13 +12,33 @@ import {
 
 // Categories live as a tab inside /seller/products now — not a sidebar entry.
 // Inventory + Promotions were removed (no backend, were misleading mocks).
-const navItems = [
-  { icon: Home,        label: "Overview",      href: "/seller/dashboard"     },
-  { icon: Package,     label: "Products",      href: "/seller/products"      },
-  { icon: ShoppingBag, label: "Orders",        href: "/seller/orders"        },
-  { icon: BarChart3,   label: "Analytics",     href: "/seller/analytics"     },
-  { icon: Store,       label: "Store Builder", href: "/seller/store-builder" },
-  { icon: CreditCard,  label: "Subscription",  href: "/seller/subscription"  },
+const navSections: {
+  title: string
+  items: { icon: typeof Home; label: string; href: string }[]
+}[] = [
+  {
+    title: "Main",
+    items: [
+      { icon: Home,        label: "Overview",  href: "/seller/dashboard" },
+      { icon: Package,     label: "Products",  href: "/seller/products"  },
+      { icon: ShoppingBag, label: "Orders",    href: "/seller/orders"    },
+      { icon: BarChart3,   label: "Analytics", href: "/seller/analytics" },
+    ],
+  },
+  {
+    title: "Store",
+    items: [
+      { icon: Store,      label: "Store Builder", href: "/seller/store-builder" },
+      { icon: CreditCard, label: "Subscription",  href: "/seller/subscription"  },
+    ],
+  },
+  {
+    title: "Support",
+    items: [
+      { icon: Settings,   label: "Settings",    href: "#" },
+      { icon: HelpCircle, label: "Help Center", href: "#" },
+    ],
+  },
 ]
 
 interface SellerSidebarProps {
@@ -113,49 +133,39 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 min-h-0 px-3 py-2 space-y-0.5 overflow-y-auto overscroll-contain">
-        <p className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
-          Navigation
-        </p>
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const active = isActive(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                active
-                  ? "bg-primary/10 text-primary border-l-[3px] border-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              }`}
-              style={active ? { paddingLeft: "calc(0.75rem - 3px)" } : {}}
-            >
-              <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-primary" : "group-hover:text-foreground"}`} />
-              {item.label}
-              {active && <ChevronRight className="ml-auto w-3.5 h-3.5 text-primary/50" />}
-            </Link>
-          )
-        })}
-
-        <div className="pt-3 mt-3 border-t border-border space-y-0.5">
-          <p className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
-            Support
-          </p>
-          {[
-            { icon: Settings,   label: "Settings"   },
-            { icon: HelpCircle, label: "Help Center" },
-          ].map(({ icon: Icon, label }) => (
-            <Link
-              key={label}
-              href="#"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all group"
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
-            </Link>
-          ))}
-        </div>
+      <nav className="flex-1 min-h-0 px-3 py-2 overflow-y-auto overscroll-contain">
+        {navSections.map((section, idx) => (
+          <div
+            key={section.title}
+            className={idx > 0 ? "pt-4 mt-3 border-t border-border/60" : ""}
+          >
+            <p className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
+              {section.title}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active = isActive(item.href)
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                      active
+                        ? "bg-primary/10 text-primary border-l-[3px] border-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    }`}
+                    style={active ? { paddingLeft: "calc(0.75rem - 3px)" } : {}}
+                  >
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-primary" : "group-hover:text-foreground"}`} />
+                    {item.label}
+                    {active && <ChevronRight className="ml-auto w-3.5 h-3.5 text-primary/50" />}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* User */}

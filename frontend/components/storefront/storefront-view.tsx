@@ -1806,7 +1806,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
   // Full-bleed autoplay video loop. Ignores any uploaded image. Falls back to
   // a dark gradient placeholder when no video is set.
   if (template === "reel") {
-    const eyebrow = resolveEyebrow(rtl ? "بث مباشر" : "On Air")
+    const eyebrow = resolveEyebrow("")
     return (
       <div
         dir={wrapDir}

@@ -130,6 +130,7 @@ export default function StorePageContent({ store, products, productsLoading }: S
         view={view}
         onCartClick={() => setIsCartOpen(true)}
         cartCount={totalItems}
+        showMarketplaceLink={false}
       />
 
       {/* Templated, fully customized hero */}

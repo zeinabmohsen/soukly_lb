@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ShoppingCart, Heart, Loader2 } from "lucide-react"
+import { ShoppingCart, Heart, Loader2, Star } from "lucide-react"
 import { StarRating } from "./star-rating"
 import { useCart } from "@/hooks/useCart"
 import { useAuth } from "@/hooks/useAuth"
@@ -62,7 +62,7 @@ function ColorSwatchRow({ colors, max = 5 }: { colors: { name: string; hex: stri
           key={c.name}
           title={c.name}
           aria-label={c.name}
-          className="w-3.5 h-3.5 rounded-full ring-1 ring-black/15 shadow-sm"
+          className="w-4 h-4 rounded-full ring-1 ring-black/15 shadow-sm transition-transform hover:scale-110"
           style={{ backgroundColor: c.hex }}
         />
       ))}
@@ -70,6 +70,21 @@ function ColorSwatchRow({ colors, max = 5 }: { colors: { name: string; hex: stri
         <span className="text-[11px] text-muted-foreground font-medium ml-0.5">+{remaining}</span>
       )}
     </div>
+  )
+}
+
+/** Frosted rating pill — sits on the product image so the price row stays clean. */
+function RatingPill({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-md shadow-sm ring-1 ring-black/5",
+        size === "sm" ? "px-1.5 py-0.5" : "px-2 py-1",
+      )}
+    >
+      <Star className={cn("fill-amber-400 text-amber-400", size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5")} />
+      <span className="text-[11px] font-bold tabular-nums leading-none text-neutral-800">{rating.toFixed(1)}</span>
+    </span>
   )
 }
 
@@ -161,6 +176,9 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
             {product.customizable && product.inStock !== false && (
               <div className="absolute top-2 left-2"><CustomizableBadge /></div>
             )}
+            {showRating && product.rating && product.inStock !== false && (
+              <div className="absolute bottom-2 left-2"><RatingPill rating={product.rating} size="sm" /></div>
+            )}
             <button
               onClick={handleToggleWishlist}
               disabled={isMutating}
@@ -186,14 +204,13 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
               <ColorSwatchRow colors={product.colors} max={4} />
             )}
           </div>
-          <div className="mt-auto flex items-center justify-between gap-2">
+          <div className="mt-auto">
             <span
               className="text-base font-bold tabular-nums tracking-tight"
-              style={accentColor ? { color: accentColor } : undefined}
+              style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}
             >
               {formattedPrice}
             </span>
-            {showRating && product.rating && <StarRating rating={product.rating} size="sm" />}
           </div>
         </div>
       </Card>
@@ -268,7 +285,7 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
         {showAddToCart && (
           <div className="pt-3">
             <Button
-              className="w-full gap-2 font-semibold"
+              className="w-full gap-2 font-semibold shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
               disabled={product.inStock === false}
               onClick={handleAddToCart}
               size="sm"
@@ -309,6 +326,9 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
           {product.customizable && product.inStock !== false && (
             <div className="absolute top-3 left-3"><CustomizableBadge /></div>
           )}
+          {showRating && product.rating && product.inStock !== false && (
+            <div className="absolute bottom-3 left-3"><RatingPill rating={product.rating} /></div>
+          )}
           <button
             onClick={handleToggleWishlist}
             disabled={isMutating}
@@ -342,18 +362,17 @@ export function ProductCard({ product, showAddToCart = true, showRating = true, 
           )}
         </div>
         <div className="mt-auto space-y-2.5">
-          <div className="flex items-end justify-between gap-2">
+          <div className="flex items-end gap-2">
             <span
               className="text-2xl font-bold tabular-nums tracking-tight leading-none"
               style={accentColor ? { color: accentColor } : { color: "var(--primary)" }}
             >
               {formattedPrice}
             </span>
-            {showRating && product.rating && <StarRating rating={product.rating} size="sm" showValue />}
           </div>
           {showAddToCart && (
             <Button
-              className="w-full gap-2 font-semibold"
+              className="w-full gap-2 font-semibold shadow-sm transition-all hover:shadow-md hover:brightness-105 active:scale-[0.98]"
               disabled={product.inStock === false}
               onClick={handleAddToCart}
               size="sm"

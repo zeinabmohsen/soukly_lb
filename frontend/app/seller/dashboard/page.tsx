@@ -493,24 +493,25 @@ export default function SellerDashboard() {
           </div>
         )}
 
-        {/* Stat cards */}
+        {/* Stat cards — clicking drills into the matching analytics tab (or products list). */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           {[
-            { label: "Total Revenue",   value: `$${stats.totalRevenue.toFixed(2)}`, icon: TrendingUp,  spark: sparkRevenue, color: "#7C3AED", id: "sp0" },
-            { label: "Total Orders",    value: String(stats.totalOrders),           icon: ShoppingBag, spark: sparkOrders,  color: "#EA580C", id: "sp1" },
+            { label: "Total Revenue",   value: `$${stats.totalRevenue.toFixed(2)}`, icon: TrendingUp,  spark: sparkRevenue, color: "#7C3AED", id: "sp0", href: "/seller/analytics?range=30days&tab=revenue"  },
+            { label: "Total Orders",    value: String(stats.totalOrders),           icon: ShoppingBag, spark: sparkOrders,  color: "#EA580C", id: "sp1", href: "/seller/analytics?range=30days&tab=revenue"  },
             // Products / Customers don't have time-series so we hide their sparklines
             // rather than reusing revenue/orders data (which was misleading).
-            { label: "Products Listed", value: String(productCount),                icon: Package,     spark: null,         color: "#059669", id: "sp2" },
-            { label: "Unique Buyers",   value: String(stats.customers),             icon: Users,       spark: null,         color: "#DB2777", id: "sp3" },
+            { label: "Products Listed", value: String(productCount),                icon: Package,     spark: null,         color: "#059669", id: "sp2", href: "/seller/products" },
+            { label: "Unique Buyers",   value: String(stats.customers),             icon: Users,       spark: null,         color: "#DB2777", id: "sp3", href: "/seller/analytics?range=30days&tab=health"   },
           ].map((stat) => {
             const Icon = stat.icon
             return (
-              <div key={stat.label}
+              <Link key={stat.label} href={stat.href}
                 className="group bg-card border border-border rounded-2xl p-5 flex flex-col hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-2.5 rounded-xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
                     <Icon className="w-4 h-4 text-primary" />
                   </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary/70 transition-colors" />
                 </div>
                 <p className="text-muted-foreground text-xs mb-0.5">{stat.label}</p>
                 <p className="text-2xl font-bold text-foreground tracking-tight mb-3">{stat.value}</p>
@@ -519,31 +520,40 @@ export default function SellerDashboard() {
                     <Spark data={stat.spark} color={stat.color} id={stat.id} />
                   </div>
                 )}
-              </div>
+              </Link>
             )
           })}
         </div>
 
         {/* Revenue chart */}
         <div className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-          <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-border">
+          <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-border gap-3 flex-wrap">
             <div>
               <h3 className="text-foreground font-semibold text-sm">Revenue Overview</h3>
               <p className="text-muted-foreground text-xs mt-0.5">
                 {chartLabel} · <span className="text-foreground font-medium">${chartTotal.toFixed(2)} total</span>
               </p>
             </div>
-            <div className="flex gap-1 p-1 rounded-lg bg-muted/50">
-              {(["W", "M", "Y"] as const).map((p) => (
-                <button key={p} onClick={() => setRevPeriod(p)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    revPeriod === p
-                      ? "bg-card border border-border shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}>
-                  {p === "W" ? "Week" : p === "M" ? "Month" : "Year"}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1 p-1 rounded-lg bg-muted/50">
+                {(["W", "M", "Y"] as const).map((p) => (
+                  <button key={p} onClick={() => setRevPeriod(p)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      revPeriod === p
+                        ? "bg-card border border-border shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}>
+                    {p === "W" ? "Week" : p === "M" ? "Month" : "Year"}
+                  </button>
+                ))}
+              </div>
+              <Link
+                href={`/seller/analytics?range=${revPeriod === "W" ? "7days" : revPeriod === "M" ? "30days" : "year"}&tab=revenue`}
+                className="text-primary hover:text-primary/80 text-xs font-medium transition-colors flex items-center gap-0.5"
+                title="Open in detailed analytics"
+              >
+                Open in Analytics <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
           </div>
           <div className="px-4 pt-3 pb-2">

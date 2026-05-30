@@ -12,6 +12,7 @@ const {
   setStoreSubscription,
   startStoreTrial,
   changeStorePlan,
+  fetchMyPayments,
 } = require("../services/storeService");
 const { clearSellerDraft } = require("../services/userService");
 
@@ -178,6 +179,12 @@ const changeMyPlan = asyncHandler(async (req, res) => {
   res.status(200).json(store);
 });
 
+// Seller — billing history for own store
+const getMyPayments = asyncHandler(async (req, res) => {
+  const result = await fetchMyPayments(req.user.id);
+  res.status(200).json(result);
+});
+
 // Admin — delete any store
 const deleteAnyStore = asyncHandler(async (req, res) => {
   const result = await deleteStore(req.params.id);
@@ -199,5 +206,6 @@ module.exports = {
   setSubscription,
   startTrial,
   changeMyPlan,
+  getMyPayments,
   deleteAnyStore,
 };

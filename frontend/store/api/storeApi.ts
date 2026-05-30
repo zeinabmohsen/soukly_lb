@@ -56,6 +56,34 @@ export interface PaginatedStores {
   has_more: boolean
 }
 
+export type PaymentStatus = "paid" | "pending" | "failed" | "refunded"
+
+export interface SubscriptionPayment {
+  id: string
+  store_id: string
+  invoice_number: string
+  plan_id: string
+  amount: number
+  currency: string
+  status: PaymentStatus
+  period_start: string
+  period_end: string
+  payment_method: string
+  paid_at: string | null
+  createdAt?: string
+}
+
+export interface BillingHistory {
+  payments: SubscriptionPayment[]
+  summary: {
+    total_paid: number
+    currency: string
+    payments_count: number
+    member_since: string | null
+    last_payment_at: string | null
+  }
+}
+
 export const storeApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getStores: builder.query<
@@ -149,16 +177,26 @@ export const storeApi = baseApi.injectEndpoints({
     startMyTrial: builder.mutation<Store, void>({
       query: () => ({ url: "/stores/me/subscription/start-trial", method: "POST" }),
       transformResponse: (res: Store) => numerify(res, STORE_NUM_FIELDS),
-      invalidatesTags: ["Store"],
+      invalidatesTags: ["Store", "Billing"],
     }),
     // Seller: upgrade/downgrade between starter | pro | premium
     changeMyPlan: builder.mutation<Store, { plan_id: string }>({
       query: (body) => ({ url: "/stores/me/subscription/plan", method: "PATCH", body }),
       transformResponse: (res: Store) => numerify(res, STORE_NUM_FIELDS),
-      invalidatesTags: ["Store"],
+      invalidatesTags: ["Store", "Billing"],
     }),
     uploadStoreImage: builder.mutation<{ url: string }, FormData>({
       query: (formData) => ({ url: "/stores/me/store/upload-image", method: "POST", body: formData }),
+    }),
+    // Seller: billing history (subscription charges) for own store
+    getMyPayments: builder.query<BillingHistory, void>({
+      query: () => "/stores/me/subscription/payments",
+      transformResponse: (res: BillingHistory) => ({
+        ...res,
+        payments: res.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
+        summary: { ...res.summary, total_paid: Number(res.summary.total_paid) },
+      }),
+      providesTags: ["Billing"],
     }),
   }),
 })
@@ -181,4 +219,5 @@ export const {
   useStartMyTrialMutation,
   useChangeMyPlanMutation,
   useUploadStoreImageMutation,
+  useGetMyPaymentsQuery,
 } = storeApi

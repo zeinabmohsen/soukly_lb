@@ -12,7 +12,9 @@ const {
   applyPasswordResetsTable,
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
+  applySubscriptionPaymentsTable,
 } = require("./migrations");
+const { seedSubscriptionPayments } = require("./subscriptionPayments");
 
 async function runSeeds() {
   await sequelize.authenticate();
@@ -31,9 +33,11 @@ async function runSeeds() {
   await applyPasswordResetsTable(sequelize);
   await applyStoreSocialColumns(sequelize);
   await applyUserPasswordVersionColumn(sequelize);
+  await applySubscriptionPaymentsTable(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });
+  await seedSubscriptionPayments();
 
   console.log("[seed] done");
   await sequelize.close();

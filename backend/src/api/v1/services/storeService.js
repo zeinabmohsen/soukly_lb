@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { Store, GlobalCategory, StoreCategory, User } = require("../models");
+const { Store, GlobalCategory, StoreCategory, User, SubscriptionPayment } = require("../models");
 
 const PUBLIC_STORE_INCLUDES = [
   { model: GlobalCategory, as: "category", attributes: ["id", "name", "slug", "icon"] },
@@ -238,6 +238,37 @@ async function deleteStore(id) {
   return true;
 }
 
+// Seller: billing history for their own store, newest charge first, plus a
+// rolled-up summary the UI shows above the table.
+async function fetchMyPayments(ownerId) {
+  const store = await Store.findOne({ where: { owner_id: ownerId } });
+  if (!store) {
+    const err = new Error("You don't have a store yet");
+    err.status = 404;
+    throw err;
+  }
+
+  const payments = await SubscriptionPayment.findAll({
+    where: { store_id: store.id },
+    order: [["period_start", "DESC"]],
+  });
+
+  const paid = payments.filter((p) => p.status === "paid");
+  const total_paid = paid.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+  const last_paid = paid[0] || null;
+
+  return {
+    payments,
+    summary: {
+      total_paid: Number(total_paid.toFixed(2)),
+      currency: payments[0]?.currency || "USD",
+      payments_count: paid.length,
+      member_since: store.created_at,
+      last_payment_at: last_paid?.paid_at || null,
+    },
+  };
+}
+
 module.exports = {
   fetchAllStores,
   fetchStoreBySlug,
@@ -252,6 +283,7 @@ module.exports = {
   setStoreSubscription,
   startStoreTrial,
   changeStorePlan,
+  fetchMyPayments,
   ALLOWED_PLAN_IDS,
   TRIAL_DAYS,
 };

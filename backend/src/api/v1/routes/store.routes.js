@@ -11,6 +11,7 @@ const {
   setSubscription,
   startTrial,
   changeMyPlan,
+  getMyPayments,
   deleteAnyStore,
 } = require("../controllers/storeController");
 const { uploadMiddleware, handleUpload } = require("../middlewares/upload");
@@ -55,6 +56,8 @@ router.delete("/me/store/categories/:id", authorize(SELLER), removeCategory);
 router.post("/me/subscription/start-trial", authorize(SELLER), startTrial);
 // Seller — upgrade/downgrade between starter | pro | premium
 router.patch("/me/subscription/plan", authorize(SELLER), changeMyPlan);
+// Seller — billing history (subscription charges)
+router.get("/me/subscription/payments", authorize(SELLER), getMyPayments);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.patch("/:id/approval", authorize(ADMIN), setStoreApproval);

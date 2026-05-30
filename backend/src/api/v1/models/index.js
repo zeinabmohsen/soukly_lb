@@ -11,6 +11,7 @@ const Wishlist      = require("./Wishlist");
 const StoreFollow   = require("./StoreFollow");
 const Review        = require("./Review");
 const Address       = require("./Address");
+const SubscriptionPayment = require("./SubscriptionPayment");
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 User.hasMany(Session,   { foreignKey: "user_id", onDelete: "CASCADE" });
@@ -80,6 +81,10 @@ Review.belongsTo(Order,  { as: "order", foreignKey: "order_id" });
 User.hasMany(Address,    { foreignKey: "user_id", onDelete: "CASCADE" });
 Address.belongsTo(User,  { foreignKey: "user_id" });
 
+// ── Subscription payments (billing history) ─────────────────────────────────────
+Store.hasMany(SubscriptionPayment,   { as: "payments", foreignKey: "store_id", onDelete: "CASCADE" });
+SubscriptionPayment.belongsTo(Store, { as: "store", foreignKey: "store_id" });
+
 module.exports = {
   User, Session, PasswordReset, GlobalCategory,
   Store, StoreCategory,
@@ -88,4 +93,5 @@ module.exports = {
   Wishlist, StoreFollow,
   Review,
   Address,
+  SubscriptionPayment,
 };

@@ -50,11 +50,14 @@ export type AnnouncementBar = {
 export type AboutTemplate =
   | "split"
   | "centered"
-  | "editorial"
   | "image-overlay"
   | "card"
   | "polaroid"
   | "minimal"
+
+export type AboutAlign = "left" | "center" | "right"
+
+export type AboutBodySize = "sm" | "md" | "lg"
 
 export type AboutSection = {
   enabled: boolean
@@ -64,6 +67,14 @@ export type AboutSection = {
   template: AboutTemplate
   /** When true, the Split template renders text on the left and image on the right. Ignored by other templates. */
   flip: boolean
+  /** Text alignment of the heading + body. Applied to Split, Card & Polaroid; the
+   *  Centered / Minimal / Overlay templates are center-aligned by design. */
+  align: AboutAlign
+  /** Small kicker label above the heading (e.g. "About", "Our Craft"). Empty = hidden.
+   *  Shown by the Split, Card & Minimal templates. */
+  eyebrow: string
+  /** Body paragraph size. */
+  bodySize: AboutBodySize
   /** Empty string = inherit from view.primaryColor. Used for kicker, underline, divider, etc. */
   accentColor: string
 }
@@ -242,8 +253,20 @@ export const DEFAULT_FONTS: Fonts = {
 
 export type HeroAlign = "left" | "center" | "right"
 
+export type HeroHeight = "short" | "medium" | "tall" | "full"
+
+export type HeroBgPosition = "top" | "center" | "bottom"
+
 export type HeroVariant = {
   align:          HeroAlign
+  /** Hero block height. Applies to every template. */
+  height:         HeroHeight
+  /** Vertical focal point for hero background images. Applies to image templates. */
+  bgPosition:     HeroBgPosition
+  /** Small kicker label above the title. Empty = use the template's built-in default. */
+  eyebrow:        string
+  /** When false, the eyebrow kicker is hidden on every template. */
+  showEyebrow:    boolean
   overlayOpacity: number   // 0–100; only honored on templates with bg images/gradients
   overlayColor:   string   // hex color for the dark/tinted wash over hero media
   videoUrl:       string   // optional — looping video bg for templates that show one
@@ -264,6 +287,10 @@ export type HeroVariant = {
 
 export const DEFAULT_HERO_VARIANT: HeroVariant = {
   align:           "left",
+  height:          "medium",
+  bgPosition:      "center",
+  eyebrow:         "",
+  showEyebrow:     true,
   overlayOpacity:  55,
   overlayColor:    "#000000",
   videoUrl:        "",
@@ -405,6 +432,9 @@ export const DEFAULT_ABOUT: AboutSection = {
   imageUrl:    "",
   template:    "split",
   flip:        false,
+  align:       "left",
+  eyebrow:     "About",
+  bodySize:    "md",
   accentColor: "",
 }
 
@@ -474,11 +504,21 @@ function readSecondaryCta(hero: Record<string, unknown> | null | undefined): Cta
 function readAbout(hero: Record<string, unknown> | null | undefined): AboutSection {
   const a = obj(hero, "aboutSection") ?? {}
   const tplRaw = str(a, "template")
-  const allowed: AboutTemplate[] = ["split", "centered", "editorial", "image-overlay", "card", "polaroid", "minimal"]
+  const allowed: AboutTemplate[] = ["split", "centered", "image-overlay", "card", "polaroid", "minimal"]
   const template: AboutTemplate =
     typeof tplRaw === "string" && (allowed as string[]).includes(tplRaw)
       ? (tplRaw as AboutTemplate)
       : DEFAULT_ABOUT.template
+  const alignRaw = str(a, "align")
+  const align: AboutAlign =
+    alignRaw === "center" || alignRaw === "right" || alignRaw === "left"
+      ? alignRaw
+      : DEFAULT_ABOUT.align
+  const sizeRaw = str(a, "bodySize")
+  const bodySize: AboutBodySize =
+    sizeRaw === "sm" || sizeRaw === "lg" || sizeRaw === "md"
+      ? sizeRaw
+      : DEFAULT_ABOUT.bodySize
   return {
     enabled:     bool(a, "enabled")     ?? DEFAULT_ABOUT.enabled,
     heading:     str(a, "heading")      ?? DEFAULT_ABOUT.heading,
@@ -486,6 +526,11 @@ function readAbout(hero: Record<string, unknown> | null | undefined): AboutSecti
     imageUrl:    str(a, "imageUrl")     ?? DEFAULT_ABOUT.imageUrl,
     template,
     flip:        bool(a, "flip")        ?? DEFAULT_ABOUT.flip,
+    align,
+    // Distinguish "field absent in old save" (→ default "About") from
+    // "seller cleared it" (→ "" hides the kicker): only fall back when undefined.
+    eyebrow:     str(a, "eyebrow")      ?? DEFAULT_ABOUT.eyebrow,
+    bodySize,
     accentColor: str(a, "accentColor")  ?? "",
   }
 }
@@ -599,8 +644,22 @@ function readHeroVariant(hero: Record<string, unknown> | null | undefined): Hero
   const op = typeof h.overlayOpacity === "number" ? h.overlayOpacity : DEFAULT_HERO_VARIANT.overlayOpacity
   const bool = (key: string, fallback: boolean) =>
     typeof h[key] === "boolean" ? (h[key] as boolean) : fallback
+  const heightRaw = str(h, "height")
+  const height: HeroHeight =
+    heightRaw === "short" || heightRaw === "tall" || heightRaw === "full" || heightRaw === "medium"
+      ? heightRaw
+      : DEFAULT_HERO_VARIANT.height
+  const bgPosRaw = str(h, "bgPosition")
+  const bgPosition: HeroBgPosition =
+    bgPosRaw === "top" || bgPosRaw === "bottom" || bgPosRaw === "center"
+      ? bgPosRaw
+      : DEFAULT_HERO_VARIANT.bgPosition
   return {
     align,
+    height,
+    bgPosition,
+    eyebrow:         str(h, "eyebrow") ?? DEFAULT_HERO_VARIANT.eyebrow,
+    showEyebrow:     bool("showEyebrow", DEFAULT_HERO_VARIANT.showEyebrow),
     overlayOpacity:  Math.max(0, Math.min(100, op)),
     overlayColor:    str(h, "overlayColor") ?? DEFAULT_HERO_VARIANT.overlayColor,
     videoUrl:        str(h, "videoUrl")     ?? "",
@@ -754,6 +813,20 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
       ? { color: aboutAccent, fontFamily: fontFamily(view.fonts.headingFont) }
       : { color: aboutAccent }
 
+  // Text alignment for templates that have a dedicated text column (Split / Card /
+  // Polaroid). The Centered, Minimal & Overlay templates are center-aligned by design.
+  const alignText  = a.align === "center" ? "text-center" : a.align === "right" ? "text-right" : "text-left"
+  const alignItems = a.align === "center" ? "items-center" : a.align === "right" ? "items-end" : "items-start"
+  // Shared, more readable body type — comfortable measure + relaxed leading.
+  // Size scales with the seller's Body Size setting.
+  const bodySizeClass =
+    a.bodySize === "sm" ? "text-sm md:text-[15px]"
+    : a.bodySize === "lg" ? "text-base md:text-lg"
+    : "text-[15px] md:text-base"
+  const bodyClass = cn(bodySizeClass, "text-muted-foreground leading-[1.85] whitespace-pre-line")
+  // Eyebrow kicker text — seller-configurable; empty string hides it.
+  const eyebrow = a.eyebrow.trim()
+
   const heading = a.heading && (
     <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
       {a.heading}
@@ -830,19 +903,21 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
             "max-w-5xl mx-auto bg-background shadow-xl ring-1 ring-black/5 p-6 md:p-10",
             tokens.radius,
           )}>
-            <div className={cn("grid gap-8 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+            <div className={cn("grid gap-8 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto")}>
               {a.imageUrl && !a.flip && image}
-              <div className="space-y-4">
+              <div className={cn("space-y-4", alignText)}>
                 {a.heading && (
                   <div className="space-y-2">
-                    <span className="inline-block text-[10px] font-bold uppercase tracking-[0.25em] px-2.5 py-1 rounded-full" style={{ backgroundColor: `${aboutAccent}15`, color: aboutAccent }}>
-                      About
-                    </span>
+                    {eyebrow && (
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-[0.25em] px-2.5 py-1 rounded-full" style={{ backgroundColor: `${aboutAccent}15`, color: aboutAccent }}>
+                        {eyebrow}
+                      </span>
+                    )}
                     {heading}
                   </div>
                 )}
                 {a.body && (
-                  <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+                  <p className={bodyClass}>{a.body}</p>
                 )}
               </div>
               {a.imageUrl && a.flip && image}
@@ -863,7 +938,7 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
         dir={view.rtl ? "rtl" : "ltr"}
       >
         <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
-          <div className={cn("grid gap-12 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+          <div className={cn("grid gap-12 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto")}>
             {a.imageUrl && (
               <div className={cn("flex", a.flip ? "md:order-2 justify-center md:justify-end" : "justify-center md:justify-start")}>
                 <div
@@ -874,10 +949,10 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
                 </div>
               </div>
             )}
-            <div className="space-y-4">
+            <div className={cn("space-y-4", alignText)}>
               {heading}
               {a.body && (
-                <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+                <p className={bodyClass}>{a.body}</p>
               )}
             </div>
           </div>
@@ -903,11 +978,13 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
             </div>
           )}
           <div className="max-w-3xl mx-auto space-y-8">
-            <div className="flex items-center gap-4">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground">About</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
+            {eyebrow && (
+              <div className="flex items-center gap-4">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground">{eyebrow}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            )}
             {a.heading && (
               <h2
                 className={cn("text-4xl md:text-6xl font-bold leading-[1.05] tracking-tight text-center", fontClass)}
@@ -921,46 +998,6 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
                 {a.body}
               </p>
             )}
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  // ── Editorial ── oversized italic body in a narrow column under a wide image
-  if (a.template === "editorial") {
-    return (
-      <section
-        id="about"
-        className={cn("border-y", !bgStyle && "bg-muted/20")}
-        style={bgStyle}
-        dir={view.rtl ? "rtl" : "ltr"}
-      >
-        <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
-          {a.imageUrl && (
-            <div className={cn("overflow-hidden aspect-[21/9] bg-muted mb-10", tokens.radius)}>
-              <img src={a.imageUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-          <div className="max-w-2xl mx-auto text-center space-y-6">
-            {a.heading && (
-              <p className="text-xs font-bold uppercase tracking-[0.35em]" style={{ color: aboutAccent }}>
-                {a.heading}
-              </p>
-            )}
-            {a.body && (
-              <p
-                className={cn("text-2xl md:text-3xl italic leading-snug text-foreground/80 whitespace-pre-line", fontClass)}
-                style={view.fonts.headingFont && view.fonts.headingFont !== "system" ? { fontFamily: fontFamily(view.fonts.headingFont) } : undefined}
-              >
-                {a.body}
-              </p>
-            )}
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <span className="h-px w-10" style={{ backgroundColor: aboutAccent }} />
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: aboutAccent }} />
-              <span className="h-px w-10" style={{ backgroundColor: aboutAccent }} />
-            </div>
           </div>
         </div>
       </section>
@@ -995,7 +1032,7 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
               </div>
             )}
             {a.body && (
-              <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+              <p className={cn(bodyClass, "max-w-2xl mx-auto")}>{a.body}</p>
             )}
           </div>
         </div>
@@ -1012,21 +1049,23 @@ export function StorefrontAbout({ view }: { view: StorefrontView }) {
       dir={view.rtl ? "rtl" : "ltr"}
     >
       <div className={cn("container mx-auto px-4", tokens.sectionPad, tokens.container)}>
-        <div className={cn("grid gap-10 md:gap-14 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto text-center")}>
+        <div className={cn("grid gap-10 md:gap-14 items-center", a.imageUrl ? "md:grid-cols-2" : "max-w-2xl mx-auto")}>
           {a.imageUrl && !a.flip && image}
-          <div className="space-y-5">
+          <div className={cn("space-y-5", alignText)}>
             {a.heading && (
-              <div className="space-y-3">
-                <span className="inline-block text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: aboutAccent }}>
-                  About
-                </span>
+              <div className={cn("flex flex-col gap-3", alignItems)}>
+                {eyebrow && (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: aboutAccent }}>
+                    {eyebrow}
+                  </span>
+                )}
                 <h2 className={cn("text-3xl md:text-4xl font-bold leading-tight tracking-tight", fontClass)} style={headingStyle}>
                   {a.heading}
                 </h2>
               </div>
             )}
             {a.body && (
-              <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+              <p className={bodyClass}>{a.body}</p>
             )}
           </div>
           {a.imageUrl && a.flip && image}
@@ -1125,7 +1164,8 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   const wrapDir = rtl ? "rtl" : "ltr"
 
-  // Hero alignment helper (applied in templates with single text block over full-bleed bg).
+  // Hero alignment helper — now honored by every template (the text column for
+  // split layouts, the whole block for full-bleed ones).
   const align = heroVariant.align
   const alignClass =
     align === "center" ? "text-center items-center mx-auto"
@@ -1135,6 +1175,27 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
     align === "center" ? "justify-center"
     : align === "right" ? "justify-end"
     : "justify-start"
+  // Aligns a flex column's cross-axis without forcing horizontal centering of the
+  // block itself (used for split-layout text columns).
+  const colAlignClass =
+    align === "center" ? "items-center text-center"
+    : align === "right" ? "items-end text-right"
+    : "items-start text-left"
+
+  // Hero height — applies to every template. Media-led templates keep a taller
+  // floor by bumping one step, so "medium" still reads cinematic for them.
+  const heightClass =
+    heroVariant.height === "short" ? "min-h-[360px]"
+    : heroVariant.height === "tall" ? "min-h-[620px] md:min-h-[760px]"
+    : heroVariant.height === "full" ? "min-h-screen"
+    : "min-h-[480px] md:min-h-[560px]"
+
+  // Background focal point for image templates → CSS background-position keyword.
+  const bgPos = heroVariant.bgPosition === "top" ? "top" : heroVariant.bgPosition === "bottom" ? "bottom" : "center"
+
+  // Eyebrow kicker resolver: seller's custom text → else the template's built-in
+  // default → hidden entirely when the seller turns the kicker off.
+  const resolveEyebrow = (def: string) => (heroVariant.showEyebrow ? (heroVariant.eyebrow.trim() || def) : "")
 
   // Overlay opacity for templates that use bg image/video.
   const overlayAlpha = heroVariant.overlayOpacity / 100
@@ -1149,17 +1210,21 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 1. Minimal ──
   if (template === "minimal") {
+    const eyebrow = resolveEyebrow("")
     return (
-      <div dir={wrapDir} className="min-h-[480px] bg-white flex items-center justify-center px-10 py-16 text-center">
-        <div className="max-w-lg space-y-6">
-          <div className="space-y-3">
+      <div dir={wrapDir} className={cn("bg-white flex items-center px-10 py-16", heightClass, flexAlignClass)}>
+        <div className={cn("max-w-lg space-y-6 flex flex-col", colAlignClass)}>
+          <div className={cn("space-y-3", alignClass)}>
+            {eyebrow && (
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em]" style={{ color: primaryColor }}>{eyebrow}</p>
+            )}
             <h1 className={cn("text-4xl font-bold leading-tight tracking-tight", fontClass)} style={{ ...headingStyle, color: primaryColor }}>
               {storeName}
             </h1>
             <p className="text-lg text-gray-400 font-light">{tagline}</p>
             <p className="text-sm text-gray-300 leading-relaxed">{description}</p>
           </div>
-          <div className={cn("flex gap-3 pt-2 justify-center", rtl && "flex-row-reverse")}>
+          <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
               className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
               style={{ backgroundColor: primaryColor }}
@@ -1177,20 +1242,23 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 2. Bold ──
   if (template === "bold") {
+    const eyebrow = resolveEyebrow(rtl ? "مرحباً بك في متجرنا" : "Welcome to our store")
     return (
       <div
         dir={wrapDir}
-        className={cn("min-h-[480px] px-10 py-16 flex items-center", flexAlignClass)}
+        className={cn("px-10 py-16 flex items-center", heightClass, flexAlignClass)}
         style={{ background: `linear-gradient(135deg,${primaryColor} 0%,${secondaryColor} 100%)` }}
       >
-        <div className={cn("max-w-2xl space-y-6 text-white", alignClass)}>
-          <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
-            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            {rtl ? "مرحباً بك في متجرنا" : "Welcome to our store"}
-          </div>
+        <div className={cn("max-w-2xl space-y-6 text-white flex flex-col", colAlignClass)}>
+          {eyebrow && (
+            <div
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
+              style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              {eyebrow}
+            </div>
+          )}
           <h1 className={cn("text-5xl font-extrabold leading-tight tracking-tight text-balance", fontClass)} style={headingStyle}>
             {storeName}
           </h1>
@@ -1213,22 +1281,25 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 3. Elegant ──
   if (template === "elegant") {
+    const eyebrow = resolveEyebrow(rtl ? "مرحباً بكم" : "Welcome")
     return (
-      <div dir={wrapDir} className="min-h-[480px] grid md:grid-cols-2 bg-stone-50">
+      <div dir={wrapDir} className={cn("grid md:grid-cols-2 bg-stone-50", heightClass)}>
         <div className="px-10 py-16 flex items-center">
-          <div className="space-y-6">
-            <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
-              <div className="h-px w-10" style={{ backgroundColor: primaryColor }} />
-              <span className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: primaryColor }}>
-                {rtl ? "مرحباً بكم" : "Welcome"}
-              </span>
-            </div>
+          <div className={cn("space-y-6 flex flex-col w-full", colAlignClass)}>
+            {eyebrow && (
+              <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
+                <div className="h-px w-10" style={{ backgroundColor: primaryColor }} />
+                <span className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: primaryColor }}>
+                  {eyebrow}
+                </span>
+              </div>
+            )}
             <h1 className={cn("text-4xl font-bold leading-tight tracking-tight", fontClass)} style={{ ...headingStyle, color: "#1a1a1a" }}>
               {storeName}
             </h1>
             <p className="text-lg text-gray-500 italic leading-relaxed">{tagline}</p>
             <p className="text-sm text-gray-400 leading-relaxed">{description}</p>
-            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+            <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
               <PrimaryCta
                 className="px-8 py-3 rounded-lg text-white text-sm font-semibold shadow-md hover:opacity-90 transition-opacity inline-block"
                 style={{ backgroundColor: primaryColor }}
@@ -1247,7 +1318,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
             background: heroVideoUrl
               ? undefined
               : heroImage
-                ? `url(${heroImage}) center/cover no-repeat`
+                ? `url(${heroImage}) ${bgPos}/cover no-repeat`
                 : `linear-gradient(135deg,${primaryColor}20 0%,${secondaryColor}20 100%)`,
           }}
         >
@@ -1282,17 +1353,20 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 4. Modern ──
   if (template === "modern") {
+    const eyebrow = resolveEyebrow(rtl ? "بوتيك حصري" : "Exclusive Boutique")
     return (
-      <div dir={wrapDir} className="min-h-[480px] bg-slate-950 px-10 py-16 flex items-center">
+      <div dir={wrapDir} className={cn("bg-slate-950 px-10 py-16 flex items-center", heightClass)}>
         <div className="w-full grid md:grid-cols-[1fr_auto] gap-10 items-center">
-          <div className="space-y-6 text-white">
-            <p className="text-xs font-bold uppercase tracking-[0.35em]" style={{ color: primaryColor }}>
-              {rtl ? "بوتيك حصري" : "Exclusive Boutique"}
-            </p>
+          <div className={cn("space-y-6 text-white flex flex-col", colAlignClass)}>
+            {eyebrow && (
+              <p className="text-xs font-bold uppercase tracking-[0.35em]" style={{ color: primaryColor }}>
+                {eyebrow}
+              </p>
+            )}
             <h1 className={cn("text-5xl font-extrabold leading-tight tracking-tight", fontClass)} style={headingStyle}>{storeName}</h1>
             <p className="text-lg text-slate-400 leading-relaxed max-w-md">{tagline}</p>
             <p className="text-sm text-slate-500 leading-relaxed max-w-md">{description}</p>
-            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+            <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
               <PrimaryCta
                 className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
                 style={{ backgroundColor: primaryColor }}
@@ -1316,10 +1390,11 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
   // ── 5. Cinematic ──
   if (template === "cinematic") {
     const hasMedia = !!(heroImage || heroVideoUrl)
+    const eyebrow = resolveEyebrow(rtl ? "مرحباً في" : "Welcome to")
     return (
       <div
         dir={wrapDir}
-        className={cn("min-h-[520px] md:min-h-[620px] relative flex items-center overflow-hidden", flexAlignClass)}
+        className={cn("relative flex items-center overflow-hidden", heightClass, flexAlignClass)}
         style={{
           background: hasMedia
             ? undefined
@@ -1336,7 +1411,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
         ) : heroImage ? (
           <div
             className="absolute inset-0 animate-[sf-kenburns_28s_ease-in-out_infinite_alternate]"
-            style={{ background: `url(${heroImage}) center/cover no-repeat` }}
+            style={{ background: `url(${heroImage}) ${bgPos}/cover no-repeat` }}
           />
         ) : null}
 
@@ -1365,12 +1440,14 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
           )}
         >
           {/* Accent rule above title */}
-          <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
-            <span className="h-px w-12" style={{ backgroundColor: primaryColor }} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/85">
-              {rtl ? "مرحباً في" : "Welcome to"}
-            </span>
-          </div>
+          {eyebrow && (
+            <div className={cn("flex items-center gap-3", rtl && "flex-row-reverse")}>
+              <span className="h-px w-12" style={{ backgroundColor: primaryColor }} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/85">
+                {eyebrow}
+              </span>
+            </div>
+          )}
 
           <h1
             className={cn("text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] drop-shadow-2xl", fontClass)}
@@ -1415,10 +1492,11 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 6. Glass ──
   if (template === "glass") {
+    const eyebrow = resolveEyebrow("")
     return (
       <div
         dir={wrapDir}
-        className="min-h-[480px] relative flex items-center justify-center overflow-hidden px-10 py-16"
+        className={cn("relative flex items-center justify-center overflow-hidden px-10 py-16", heightClass)}
         style={{ background: `linear-gradient(135deg,${primaryColor} 0%,${secondaryColor} 100%)` }}
       >
         <div className="absolute top-[-60px] right-[-60px] w-72 h-72 rounded-full blur-3xl opacity-40" style={{ backgroundColor: secondaryColor }} />
@@ -1426,7 +1504,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
         <div className="absolute top-1/2 left-1/4 w-40 h-40 rounded-full blur-2xl opacity-20" style={{ backgroundColor: "#ffffff" }} />
 
         <div
-          className="relative z-10 rounded-3xl p-10 text-center max-w-lg w-full space-y-6"
+          className={cn("relative z-10 rounded-3xl p-10 max-w-lg w-full space-y-6 flex flex-col", colAlignClass)}
           style={{
             backgroundColor: "rgba(255,255,255,0.15)",
             backdropFilter: "blur(20px)",
@@ -1434,12 +1512,15 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
             boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
           }}
         >
+          {eyebrow && (
+            <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-white/80">{eyebrow}</span>
+          )}
           <h1 className={cn("text-4xl font-bold text-white leading-tight tracking-tight drop-shadow", fontClass)} style={headingStyle}>
             {storeName}
           </h1>
           <p className="text-white/85 text-lg leading-relaxed">{tagline}</p>
           <p className="text-white/65 text-sm leading-relaxed">{description}</p>
-          <div className={cn("flex gap-3 pt-2 justify-center", rtl && "flex-row-reverse")}>
+          <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
               className="px-8 py-3 rounded-full text-sm font-bold text-white border border-white/40 hover:bg-white/20 transition-colors shadow-lg inline-block"
               style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
@@ -1456,20 +1537,23 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 7. Geometric ──
   if (template === "geometric") {
+    const eyebrow = resolveEyebrow(rtl ? "متجرنا" : "Our Store")
     return (
-      <div dir={wrapDir} className="min-h-[480px] bg-white relative overflow-hidden flex items-center">
+      <div dir={wrapDir} className={cn("bg-white relative overflow-hidden flex items-center", heightClass, flexAlignClass)}>
         <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ backgroundColor: `${primaryColor}18` }} />
         <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full" style={{ backgroundColor: `${secondaryColor}15` }} />
         <div className="absolute bottom-16 right-16 w-20 h-20 rounded-full" style={{ backgroundColor: `${primaryColor}12` }} />
         <div className="absolute top-16 right-52 w-16 h-16 rounded-xl rotate-45" style={{ backgroundColor: `${secondaryColor}20` }} />
 
-        <div className={cn("relative z-10 px-14 py-16 max-w-xl space-y-6", rtl && "mr-auto ml-0")}>
+        <div className={cn("relative z-10 px-14 py-16 max-w-xl space-y-6 flex flex-col", colAlignClass)}>
           <div className={cn("flex items-center gap-4", rtl && "flex-row-reverse")}>
             <div className="w-1 h-14 rounded-full" style={{ backgroundColor: primaryColor }} />
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase tracking-[0.3em]" style={{ color: primaryColor }}>
-                {rtl ? "متجرنا" : "Our Store"}
-              </p>
+              {eyebrow && (
+                <p className="text-xs font-bold uppercase tracking-[0.3em]" style={{ color: primaryColor }}>
+                  {eyebrow}
+                </p>
+              )}
               <h1 className={cn("text-5xl font-bold leading-tight tracking-tight text-gray-900", fontClass)} style={headingStyle}>
                 {storeName}
               </h1>
@@ -1477,7 +1561,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
           </div>
           <p className="text-xl font-light text-gray-500 leading-relaxed">{tagline}</p>
           <p className="text-sm text-gray-400 leading-relaxed">{description}</p>
-          <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+          <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
               className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg hover:opacity-90 hover:scale-105 transition-all inline-block"
               style={{ backgroundColor: primaryColor }}
@@ -1495,22 +1579,25 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 8. Luxury ──
   if (template === "luxury") {
+    const eyebrow = resolveEyebrow(rtl ? "مجموعة فاخرة" : "Luxury Collection")
     return (
       <div
         dir={wrapDir}
-        className="min-h-[480px] flex items-center px-14 py-16 relative overflow-hidden"
+        className={cn("flex items-center px-14 py-16 relative overflow-hidden", heightClass, flexAlignClass)}
         style={{ background: `linear-gradient(135deg,#080808 0%,#180820 60%,#0a0a0a 100%)` }}
       >
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-[140px] opacity-10" style={{ backgroundColor: primaryColor }} />
         <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] opacity-10" style={{ backgroundColor: secondaryColor }} />
 
-        <div className="relative z-10 max-w-2xl space-y-7 text-white">
-          <div className="flex items-center gap-4">
-            <div className="h-px w-12" style={{ backgroundColor: primaryColor }} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em]" style={{ color: primaryColor }}>
-              {rtl ? "مجموعة فاخرة" : "Luxury Collection"}
-            </span>
-          </div>
+        <div className={cn("relative z-10 max-w-2xl space-y-7 text-white flex flex-col", colAlignClass)}>
+          {eyebrow && (
+            <div className="flex items-center gap-4">
+              <div className="h-px w-12" style={{ backgroundColor: primaryColor }} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em]" style={{ color: primaryColor }}>
+                {eyebrow}
+              </span>
+            </div>
+          )}
 
           <div className="space-y-1">
             <h1
@@ -1529,7 +1616,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
           <p className="text-lg leading-relaxed font-light" style={{ color: secondaryColor }}>{tagline}</p>
           <p className="text-sm leading-relaxed text-white/40 max-w-md">{description}</p>
 
-          <div className={cn("flex gap-4 pt-2", rtl && "flex-row-reverse")}>
+          <div className={cn("flex gap-4 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
               className="px-8 py-3 text-sm font-semibold rounded-none border hover:bg-white/5 transition-colors tracking-widest uppercase inline-block"
               style={{ borderColor: primaryColor, color: primaryColor }}
@@ -1546,17 +1633,20 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 9. Wave ──
   if (template === "wave") {
+    const eyebrow = resolveEyebrow(rtl ? "اكتشف مجموعتنا" : "Discover our collection")
     return (
-      <div dir={wrapDir} className="min-h-[480px] bg-white relative overflow-hidden flex flex-col">
+      <div dir={wrapDir} className={cn("bg-white relative overflow-hidden flex flex-col", heightClass)}>
         <div className={cn("flex-1 flex items-center px-10 py-14 relative z-10", flexAlignClass)}>
-          <div className={cn("max-w-xl space-y-6", alignClass)}>
-            <div
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
-              style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
-              {rtl ? "اكتشف مجموعتنا" : "Discover our collection"}
-            </div>
+          <div className={cn("max-w-xl space-y-6 flex flex-col", colAlignClass)}>
+            {eyebrow && (
+              <div
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
+                style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+                {eyebrow}
+              </div>
+            )}
 
             <h1 className={cn("text-5xl font-bold leading-tight tracking-tight text-gray-900", fontClass)} style={headingStyle}>
               {storeName}
@@ -1593,8 +1683,9 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
   // ── 10. Magazine ──
   if (template === "magazine") {
+    const eyebrow = resolveEyebrow(rtl ? "متجرنا المميز" : "Featured Store")
     return (
-      <div dir={wrapDir} className={cn("min-h-[480px] bg-gray-50 relative overflow-hidden flex items-center", flexAlignClass)}>
+      <div dir={wrapDir} className={cn("bg-gray-50 relative overflow-hidden flex items-center", heightClass, flexAlignClass)}>
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden select-none pointer-events-none">
           <span
             className="font-black whitespace-nowrap leading-none"
@@ -1606,13 +1697,15 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
         <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: primaryColor }} />
 
-        <div className={cn("relative z-10 px-16 py-16 space-y-7", rtl && "pr-6 pl-16")}>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-black uppercase tracking-[0.4em] text-gray-400">
-              {rtl ? "متجرنا المميز" : "Featured Store"}
-            </span>
-            <div className="h-px flex-1 max-w-16 bg-gray-200" />
-          </div>
+        <div className={cn("relative z-10 px-16 py-16 space-y-7 flex flex-col", colAlignClass)}>
+          {eyebrow && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black uppercase tracking-[0.4em] text-gray-400">
+                {eyebrow}
+              </span>
+              <div className="h-px flex-1 max-w-16 bg-gray-200" />
+            </div>
+          )}
 
           <h1 className={cn("text-6xl font-black leading-none tracking-tight text-gray-900", fontClass)} style={headingStyle}>
             {storeName}
@@ -1625,7 +1718,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
 
           <p className="text-sm text-gray-400 leading-relaxed max-w-sm">{description}</p>
 
-          <div className={cn("flex items-center gap-6 pt-2", rtl && "flex-row-reverse")}>
+          <div className={cn("flex items-center gap-6 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
             <PrimaryCta
               className="px-8 py-3 text-sm font-black text-white tracking-wider uppercase hover:opacity-90 transition-opacity inline-block"
               style={{ backgroundColor: primaryColor }}
@@ -1645,10 +1738,11 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
   // that want to lead with one strong product/lifestyle image. Falls back to a
   // brand-color gradient with a hint when no image is set.
   if (template === "showcase") {
+    const eyebrow = resolveEyebrow("")
     return (
       <div
         dir={wrapDir}
-        className={cn("min-h-[560px] md:min-h-[640px] relative overflow-hidden flex items-end", flexAlignClass)}
+        className={cn("relative overflow-hidden flex items-end", heightClass, flexAlignClass)}
         style={{
           background: heroImage
             ? undefined
@@ -1658,7 +1752,7 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
         {heroImage ? (
           <div
             className="absolute inset-0"
-            style={{ background: `url(${heroImage}) center/cover no-repeat` }}
+            style={{ background: `url(${heroImage}) ${bgPos}/cover no-repeat` }}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1683,13 +1777,16 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
           />
         )}
 
-        <div className={cn("relative z-10 w-full px-8 md:px-12 py-10 md:py-14", alignClass)}>
-          <div className="space-y-3 max-w-xl text-white">
+        <div className={cn("relative z-10 w-full px-8 md:px-12 py-10 md:py-14 flex", flexAlignClass)}>
+          <div className={cn("space-y-3 max-w-xl text-white flex flex-col", colAlignClass)}>
+            {eyebrow && (
+              <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-white/80 drop-shadow">{eyebrow}</span>
+            )}
             <h1 className={cn("text-4xl md:text-5xl font-bold leading-tight tracking-tight drop-shadow", fontClass)} style={headingStyle}>
               {storeName}
             </h1>
             {tagline && <p className="text-lg text-white/90 drop-shadow">{tagline}</p>}
-            <div className={cn("flex gap-3 pt-3", rtl && "flex-row-reverse")}>
+            <div className={cn("flex gap-3 pt-3", flexAlignClass, rtl && "flex-row-reverse")}>
               <PrimaryCta
                 className="px-7 py-2.5 rounded-full text-sm font-semibold text-white shadow-xl hover:opacity-90 hover:scale-105 transition-all inline-block"
                 style={{ backgroundColor: primaryColor }}
@@ -1709,10 +1806,11 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
   // Full-bleed autoplay video loop. Ignores any uploaded image. Falls back to
   // a dark gradient placeholder when no video is set.
   if (template === "reel") {
+    const eyebrow = resolveEyebrow(rtl ? "بث مباشر" : "On Air")
     return (
       <div
         dir={wrapDir}
-        className={cn("min-h-[560px] md:min-h-[640px] relative overflow-hidden flex items-center", flexAlignClass)}
+        className={cn("relative overflow-hidden flex items-center", heightClass, flexAlignClass)}
         style={{
           background: heroVideoUrl
             ? "#000"
@@ -1751,17 +1849,19 @@ function StorefrontHeroBody({ view }: { view: StorefrontView }) {
           />
         )}
 
-        <div className={cn("relative z-10 w-full px-8 md:px-12 py-12", alignClass)}>
-          <div className="space-y-4 max-w-xl text-white">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] bg-white/15 backdrop-blur">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              {rtl ? "بث مباشر" : "On Air"}
-            </span>
+        <div className={cn("relative z-10 w-full px-8 md:px-12 py-12 flex", flexAlignClass)}>
+          <div className={cn("space-y-4 max-w-xl text-white flex flex-col", colAlignClass)}>
+            {eyebrow && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] bg-white/15 backdrop-blur">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                {eyebrow}
+              </span>
+            )}
             <h1 className={cn("text-4xl md:text-6xl font-black leading-none tracking-tight drop-shadow-lg", fontClass)} style={headingStyle}>
               {storeName}
             </h1>
             {tagline && <p className="text-lg text-white/85 drop-shadow">{tagline}</p>}
-            <div className={cn("flex gap-3 pt-2", rtl && "flex-row-reverse")}>
+            <div className={cn("flex gap-3 pt-2", flexAlignClass, rtl && "flex-row-reverse")}>
               <PrimaryCta
                 className="px-8 py-3 rounded-full text-sm font-bold text-white shadow-xl hover:opacity-90 hover:scale-105 transition-all inline-block"
                 style={{ backgroundColor: primaryColor }}
@@ -2006,10 +2106,13 @@ export function StorefrontNav({
   view,
   onCartClick,
   cartCount = 0,
+  showMarketplaceLink = true,
 }: {
   view: StorefrontView
   onCartClick?: () => void
   cartCount?: number
+  /** "← Soukly" back-to-marketplace pill. Hidden in the seller builder preview. */
+  showMarketplaceLink?: boolean
 }) {
   const { storeName, primaryColor, nav, rtl, fonts } = view
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -2049,14 +2152,16 @@ export function StorefrontNav({
       <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Left: back-to-marketplace pill + brand */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Link
-            href="/"
-            aria-label="Back to Soukly marketplace"
-            className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-muted hover:bg-muted/70 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          >
-            <ArrowLeft className={cn("w-3 h-3", rtl && "rotate-180")} />
-            <span>Soukly</span>
-          </Link>
+          {showMarketplaceLink && (
+            <Link
+              href="/"
+              aria-label="Back to Soukly marketplace"
+              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-muted hover:bg-muted/70 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <ArrowLeft className={cn("w-3 h-3", rtl && "rotate-180")} />
+              <span>Soukly</span>
+            </Link>
+          )}
 
           <a href="#top" className="flex items-center min-w-0">
             <span

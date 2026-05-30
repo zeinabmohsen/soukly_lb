@@ -10,7 +10,17 @@ import {
 } from "./_normalize"
 
 function normalizeOrder(o: Order): Order {
-  const out = numerify(o, ORDER_NUM_FIELDS)
+  // The API serializes the Sequelize model directly, so it sends `total` and
+  // the `items` association alias. The frontend type uses `total_amount` and
+  // `OrderItems`, so bridge the names here (at the single slice boundary)
+  // before numerifying — otherwise every order reads as $0 with no line items.
+  const raw = o as unknown as Record<string, unknown>
+  const mapped = {
+    ...o,
+    total_amount: (raw.total_amount ?? raw.total) as number,
+    OrderItems: (raw.OrderItems ?? raw.items) as OrderItem[] | undefined,
+  }
+  const out = numerify(mapped, ORDER_NUM_FIELDS)
   if (out.OrderItems) out.OrderItems = numerifyList(out.OrderItems, ORDER_ITEM_NUM_FIELDS)
   return out
 }

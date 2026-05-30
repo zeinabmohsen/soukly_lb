@@ -135,11 +135,10 @@ const STORES = [
     is_approved: true,
     logo_url: "https://images.unsplash.com/photo-1481401908818-600b7a676c0d?w=400&q=80&auto=format&fit=crop",
     cover_url: "https://images.unsplash.com/photo-1481401908818-600b7a676c0d?w=1600&q=80&auto=format&fit=crop",
-    // Newer seller, still in free trial on the Starter plan
-    subscription_status: "trialing",
-    plan_id: "starter",
+    // Established seller, paying monthly on the Pro plan
+    subscription_status: "active",
+    plan_id: "pro",
     is_founding_seller: false,
-    trial_days_remaining: 15,
     hero: {
       bg_image_url: "https://images.unsplash.com/photo-1481401908818-600b7a676c0d?w=1920&q=80&auto=format&fit=crop",
       headline: "Made on the wheel. Made by hand.",

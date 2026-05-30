@@ -147,6 +147,56 @@ async function applyPasswordResetsTable(sequelize) {
   console.log("[migrate] password_resets table ensured");
 }
 
+async function applySubscriptionPaymentsTable(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  // 1. Status ENUM
+  await sequelize.query(
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_subscription_payments_status') THEN
+         CREATE TYPE "enum_subscription_payments_status" AS ENUM (
+           'paid', 'pending', 'failed', 'refunded'
+         );
+       END IF;
+     END
+     $$;`,
+    { type: QueryTypes.RAW },
+  );
+
+  // 2. Table
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "subscription_payments" (
+       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       "store_id" UUID NOT NULL REFERENCES "stores"("id") ON DELETE CASCADE,
+       "invoice_number" VARCHAR(255) NOT NULL,
+       "plan_id" VARCHAR(255) NOT NULL,
+       "amount" DECIMAL(10,2) NOT NULL,
+       "currency" VARCHAR(255) NOT NULL DEFAULT 'USD',
+       "status" "enum_subscription_payments_status" NOT NULL DEFAULT 'paid',
+       "period_start" TIMESTAMP WITH TIME ZONE NOT NULL,
+       "period_end" TIMESTAMP WITH TIME ZONE NOT NULL,
+       "payment_method" VARCHAR(255) NOT NULL DEFAULT 'whish',
+       "paid_at" TIMESTAMP WITH TIME ZONE,
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+     )`,
+    { type: QueryTypes.RAW },
+  );
+
+  // 3. Indexes
+  await sequelize.query(
+    `CREATE INDEX IF NOT EXISTS "subscription_payments_store_id_idx" ON "subscription_payments"("store_id")`,
+    { type: QueryTypes.RAW },
+  );
+  await sequelize.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "subscription_payments_store_invoice_unique" ON "subscription_payments"("store_id", "invoice_number")`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] subscription_payments table ensured");
+}
+
 module.exports = {
   applySubscriptionColumns,
   applySellerDraftColumn,
@@ -156,4 +206,5 @@ module.exports = {
   applyPasswordResetsTable,
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
+  applySubscriptionPaymentsTable,
 };

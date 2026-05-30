@@ -90,6 +90,7 @@ import {
   type PaymentMethod,
   type TrustBadgeKey,
   type TrustBadgeItem,
+  type TrustBadges,
   type Theme,
   type Fonts,
   type BgColors,
@@ -193,6 +194,11 @@ const DEFAULT_DATA: StoreData = {
 export default function StoreBuilder() {
   const { toast } = useToast()
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop")
+  // Measured width of the scrollable preview pane. Used to scale a simulated
+  // desktop/mobile viewport down to fit, so the Page Width setting (narrow →
+  // full) shows real proportional margins instead of every width filling the
+  // narrow preview frame identically.
+  const [previewPaneW, setPreviewPaneW] = useState(0)
   // Mobile-only pane toggle: which panel is visible below the lg breakpoint.
   // On lg+ both panels show side-by-side regardless.
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit")
@@ -227,6 +233,19 @@ export default function StoreBuilder() {
     el.setAttribute("data-sb-pulse", "")
     setTimeout(() => el.removeAttribute("data-sb-pulse"), 1500)
   }
+
+  // Track the preview pane's rendered width so we can scale the simulated
+  // viewport to fit it (see previewZoom below).
+  useEffect(() => {
+    const el = previewBodyRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w) setPreviewPaneW(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!storeApiData) return
@@ -323,6 +342,13 @@ export default function StoreBuilder() {
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
   }, [isDirty])
+
+  // Simulate a real device viewport, then zoom it down to fit the preview pane.
+  // 1440px desktop is wider than every Page Width preset (narrow 768 → wide 1280),
+  // so all four now show distinct margins; "full" fills the whole 1440.
+  const simViewportWidth = previewMode === "desktop" ? 1440 : 390
+  // Never upscale past 1 (keeps the mobile frame pixel-accurate).
+  const previewZoom = previewPaneW > 0 ? Math.min(1, previewPaneW / simViewportWidth) : 1
 
   return (
     <div className="h-screen bg-muted/30 flex flex-col overflow-hidden">
@@ -865,9 +891,96 @@ export default function StoreBuilder() {
                     })}
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    Affects Bold, Cinematic, Wave & Magazine templates.
+                    Aligns the hero text — now works across all templates.
                   </p>
                 </Field>
+
+                <Field label="Hero Height">
+                  <div className="grid grid-cols-4 gap-1.5 rounded-lg border bg-muted/30 p-1">
+                    {([
+                      { v: "short",  label: "Short" },
+                      { v: "medium", label: "Medium" },
+                      { v: "tall",   label: "Tall" },
+                      { v: "full",   label: "Full" },
+                    ] as const).map(({ v, label }) => {
+                      const active = storeData.heroVariant.height === v
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => update("heroVariant", { ...storeData.heroVariant, height: v })}
+                          className={cn(
+                            "py-1.5 rounded text-xs font-medium transition-colors",
+                            active ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    How tall the hero block is. "Full" fills the whole screen.
+                  </p>
+                </Field>
+
+                <Field label="Eyebrow Label">
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 mb-2">
+                    <span className="text-xs font-medium">Show eyebrow</span>
+                    <Switch
+                      checked={storeData.heroVariant.showEyebrow}
+                      onCheckedChange={(v) =>
+                        update("heroVariant", { ...storeData.heroVariant, showEyebrow: v })
+                      }
+                    />
+                  </div>
+                  {storeData.heroVariant.showEyebrow && (
+                    <>
+                      <Input
+                        value={storeData.heroVariant.eyebrow}
+                        onChange={(e) => update("heroVariant", { ...storeData.heroVariant, eyebrow: e.target.value })}
+                        placeholder="Welcome to our store"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Small label above the title. Leave blank to use each template's built-in default.
+                      </p>
+                    </>
+                  )}
+                </Field>
+
+                {(() => {
+                  const activeTpl = TEMPLATES.find((t) => t.id === storeData.template)
+                  if (!activeTpl?.usesImage) return null
+                  return (
+                    <Field label="Image Focal Point">
+                      <div className="grid grid-cols-3 gap-1.5 rounded-lg border bg-muted/30 p-1">
+                        {([
+                          { v: "top",    label: "Top" },
+                          { v: "center", label: "Center" },
+                          { v: "bottom", label: "Bottom" },
+                        ] as const).map(({ v, label }) => {
+                          const active = storeData.heroVariant.bgPosition === v
+                          return (
+                            <button
+                              key={v}
+                              type="button"
+                              onClick={() => update("heroVariant", { ...storeData.heroVariant, bgPosition: v })}
+                              className={cn(
+                                "py-1.5 rounded text-xs font-medium transition-colors",
+                                active ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Which part of your hero image stays in view when it's cropped.
+                      </p>
+                    </Field>
+                  )
+                })()}
 
                 <Field label="What to Show">
                   <div className="rounded-lg border bg-muted/20 divide-y">
@@ -1127,6 +1240,45 @@ export default function StoreBuilder() {
                   />
                 </div>
               )}
+              {(["split", "card", "polaroid"] as const).includes(
+                storeData.aboutSection.template as "split" | "card" | "polaroid",
+              ) ? (
+                <Field label="Text Alignment">
+                  <div className="grid grid-cols-3 gap-1.5 rounded-lg border bg-muted/30 p-1">
+                    {(["left", "center", "right"] as const).map((align) => {
+                      const Icon = align === "left" ? AlignLeft : align === "center" ? AlignCenter : AlignRight
+                      const active = storeData.aboutSection.align === align
+                      return (
+                        <button
+                          key={align}
+                          type="button"
+                          onClick={() => update("aboutSection", { ...storeData.aboutSection, align })}
+                          className={cn(
+                            "flex items-center justify-center gap-1.5 py-1.5 rounded text-xs font-medium transition-colors",
+                            active ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span className="capitalize">{align}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Aligns the heading & body text. Centered, Minimal & Overlay layouts are always centered.
+                  </p>
+                </Field>
+              ) : null}
+              <Field label="Eyebrow Label">
+                <Input
+                  value={storeData.aboutSection.eyebrow}
+                  onChange={(e) => update("aboutSection", { ...storeData.aboutSection, eyebrow: e.target.value })}
+                  placeholder="About"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Small label above the heading (e.g. "Our Craft", "Since 2015"). Leave blank to hide it. Shown on Split, Card & Minimal layouts.
+                </p>
+              </Field>
               <Field label="Heading">
                 <Input
                   value={storeData.aboutSection.heading}
@@ -1141,6 +1293,30 @@ export default function StoreBuilder() {
                   placeholder="Tell visitors about your brand, your craft, and what makes you different."
                   rows={4}
                 />
+              </Field>
+              <Field label="Body Text Size">
+                <div className="grid grid-cols-3 gap-1.5 rounded-lg border bg-muted/30 p-1">
+                  {([
+                    { v: "sm", label: "Small" },
+                    { v: "md", label: "Normal" },
+                    { v: "lg", label: "Large" },
+                  ] as const).map(({ v, label }) => {
+                    const active = storeData.aboutSection.bodySize === v
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => update("aboutSection", { ...storeData.aboutSection, bodySize: v })}
+                        className={cn(
+                          "py-1.5 rounded text-xs font-medium transition-colors",
+                          active ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <span className={v === "sm" ? "text-[11px]" : v === "lg" ? "text-sm" : "text-xs"}>{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </Field>
               <ImageUploadField
                 label="About Image"
@@ -1535,7 +1711,7 @@ export default function StoreBuilder() {
           <div
             className={cn(
               "flex flex-col flex-1 min-h-0 bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 w-full max-w-full",
-              previewMode === "desktop" ? "lg:max-w-4xl" : "sm:max-w-[390px]",
+              previewMode === "desktop" ? "lg:max-w-5xl" : "sm:max-w-[390px]",
             )}
           >
             {/* Device chrome — browser-style for desktop, slim notch for mobile */}
@@ -1558,7 +1734,11 @@ export default function StoreBuilder() {
               ref={previewBodyRef}
               className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-white"
             >
-              <StorePreview data={storeData} />
+              {/* Simulated viewport — laid out at a real device width, then zoomed
+                  to fit so Page Width margins render to scale. */}
+              <div style={{ width: simViewportWidth, zoom: String(previewZoom) } as React.CSSProperties}>
+                <StorePreview data={storeData} />
+              </div>
             </div>
           </div>
         </main>
@@ -2048,20 +2228,6 @@ function AboutTemplatePicker({
           <div className="h-1 rounded-sm w-1/2" style={{ background: accent }} />
           <div className="h-0.5 rounded-sm w-3/4 bg-muted-foreground/40" />
           <div className="h-0.5 rounded-sm w-2/3 bg-muted-foreground/40" />
-        </div>
-      ),
-    },
-    {
-      value: "editorial",
-      label: "Editorial",
-      hint: "Big italic quote, wide image",
-      mock: (
-        <div className="w-full space-y-1">
-          <div className="aspect-[3/1] rounded-sm bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/15" />
-          <div className="flex flex-col items-center pt-0.5">
-            <div className="h-0.5 rounded-sm w-1/3" style={{ background: accent }} />
-            <div className="italic text-[6px] leading-none mt-0.5 text-muted-foreground">"…"</div>
-          </div>
         </div>
       ),
     },
@@ -2672,8 +2838,8 @@ function TrustBadgesEditor({
   trustBadges,
   onChange,
 }: {
-  trustBadges: { enabled: boolean; items: TrustBadgeItem[] }
-  onChange: (t: { enabled: boolean; items: TrustBadgeItem[] }) => void
+  trustBadges: TrustBadges
+  onChange: (t: TrustBadges) => void
 }) {
   const allKeys = Object.keys(TRUST_BADGE_PRESETS) as TrustBadgeKey[]
   const usedKeys = new Set(trustBadges.items.map((i) => i.key))
@@ -3029,7 +3195,7 @@ function StorePreview({ data: rawData }: { data: StoreData }) {
     <div style={rootStyle}>
       <GoogleFontsLoader view={previewView} />
       <StorefrontAnnouncementBar view={previewView} />
-      <StorefrontNav view={previewView} cartCount={0} onCartClick={() => {}} />
+      <StorefrontNav view={previewView} cartCount={0} onCartClick={() => {}} showMarketplaceLink={false} />
       <StorefrontHero view={previewView} />
       <StorefrontAbout view={previewView} />
       <PreviewProducts view={previewView} />
@@ -3046,36 +3212,36 @@ function StorePreview({ data: rawData }: { data: StoreData }) {
 // (see store-page-content.tsx) but skips the search and category filters.
 
 const PREVIEW_PRODUCTS = [
-  { id: "preview-1", name: "Handwoven Ceramic Vase",   price: 45, hue: 18,  rating: 4.8 },
-  { id: "preview-2", name: "Olive Wood Serving Board", price: 32, hue: 75,  rating: 4.9 },
-  { id: "preview-3", name: "Cedar Soap Trio",          price: 18, hue: 200, rating: 4.7 },
-  { id: "preview-4", name: "Linen Table Runner",       price: 28, hue: 340, rating: 4.6 },
-  { id: "preview-5", name: "Brass Coffee Pot",         price: 55, hue: 35,  rating: 5.0 },
-  { id: "preview-6", name: "Hand-Painted Tile Set",    price: 38, hue: 260, rating: 4.8 },
+  { id: "preview-1", name: "Hand-Glazed Ceramic Vase", price: 48, rating: 4.8 },
+  { id: "preview-2", name: "Olive Wood Serving Board", price: 34, rating: 4.9 },
+  { id: "preview-3", name: "Cedar & Laurel Soap Set",  price: 16, rating: 4.7 },
+  { id: "preview-4", name: "Linen Table Runner",       price: 42, rating: 4.6 },
+  { id: "preview-5", name: "Brass Coffee Rakwe",       price: 58, rating: 5.0 },
+  { id: "preview-6", name: "Mosaic Tile Coasters",     price: 29, rating: 4.8 },
 ] as const
 
 const PREVIEW_CATEGORIES = ["All", "Pottery", "Textiles", "Wood", "Bath"] as const
 
-// Generate a colorful gradient SVG placeholder per product so the builder
-// preview shows variety — a grey /placeholder.svg makes every card look
-// identical and hides what the chosen card style actually does with imagery.
-function previewProductImage(hue: number, accent: string): string {
-  const safeAccent = accent || "#888888"
+// Neutral, brand-tinted "your photo goes here" placeholder — like Shopify's empty
+// product slot. A soft accent wash over white plus a single line-art product mark
+// reads as an intentional placeholder, so the seller judges their card style,
+// colors, fonts & radius instead of being distracted by rainbow gradient squares.
+function previewProductImage(accent: string): string {
+  const safeAccent = accent || "#94a3b8"
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
     <defs>
-      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="hsl(${hue}, 55%, 78%)" />
-        <stop offset="100%" stop-color="hsl(${(hue + 35) % 360}, 50%, 58%)" />
-      </linearGradient>
-      <radialGradient id="r" cx="35%" cy="30%" r="60%">
-        <stop offset="0%" stop-color="white" stop-opacity="0.45" />
-        <stop offset="100%" stop-color="white" stop-opacity="0" />
+      <radialGradient id="h" cx="32%" cy="26%" r="75%">
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="100%" stop-color="#f1f5f9" />
       </radialGradient>
     </defs>
-    <rect width="400" height="400" fill="url(#g)" />
-    <rect width="400" height="400" fill="url(#r)" />
-    <circle cx="200" cy="220" r="90" fill="${safeAccent}" opacity="0.25" />
-    <circle cx="200" cy="220" r="55" fill="${safeAccent}" opacity="0.35" />
+    <rect width="400" height="400" fill="url(#h)" />
+    <rect width="400" height="400" fill="${safeAccent}" opacity="0.07" />
+    <g transform="translate(140,138) scale(5)" fill="none" stroke="${safeAccent}" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </g>
   </svg>`
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
@@ -3159,7 +3325,7 @@ function PreviewProducts({ view }: { view: StorefrontView }) {
                 id: p.id,
                 name: p.name,
                 price: p.price,
-                image: previewProductImage(p.hue, productsAccent),
+                image: previewProductImage(productsAccent),
                 rating: p.rating,
                 inStock: true,
               }}

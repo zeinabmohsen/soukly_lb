@@ -29,7 +29,7 @@ export function AuthInitializer() {
   const dispatch = useAppDispatch()
   const accessToken = useAppSelector(selectAccessToken)
   const isHydrating = useAppSelector(selectIsHydrating)
-  const { data, isLoading, isError } = useGetMeQuery()
+  const { data, isLoading, isError, error } = useGetMeQuery()
 
   useEffect(() => {
     if (isLoading) return
@@ -41,14 +41,19 @@ export function AuthInitializer() {
       return
     }
 
-    // /auth/me finished (either error, or no token returned). Mark hydration
-    // complete one way or the other so UI stops spinning. If we failed and
-    // there's no fresh token, drop the stale stored user too.
     if (isHydrating) {
-      const ok = !!(data?.user && accessToken)
-      dispatch(finishHydration({ ok }))
+      // /auth/me failed. ONLY treat a definitive 401 as "logged out" — that
+      // means the refresh cookie is gone/expired and the session is truly dead,
+      // so we clear the stale stored user. A network error or 5xx (e.g. the
+      // backend cold-starting on Render's free tier) must NOT log the user out:
+      // keep the optimistic user from localStorage and let a later request
+      // recover the token. baseApi already does a 401→refresh→retry, so if we
+      // still see 401 here the refresh genuinely failed.
+      const status = (error as { status?: number | string } | undefined)?.status
+      const definitivelyUnauthorized = status === 401
+      dispatch(finishHydration({ ok: !definitivelyUnauthorized }))
     }
-  }, [data, accessToken, isLoading, isError, isHydrating, dispatch])
+  }, [data, accessToken, isLoading, isError, error, isHydrating, dispatch])
 
   return null
 }

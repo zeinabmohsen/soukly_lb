@@ -11,6 +11,7 @@ import {
   logout as logoutAction,
 } from "@/store/slices/authSlice"
 import { useLogoutUserMutation } from "@/store/api/authApi"
+import { baseApi } from "@/store/api/baseApi"
 
 export function useAuth() {
   const dispatch = useAppDispatch()
@@ -25,11 +26,20 @@ export function useAuth() {
   const isHydrating = useAppSelector(selectIsHydrating)
   const [triggerLogout] = useLogoutUserMutation()
 
-  const logout = () => dispatch(logoutAction())
+  // Clear auth state AND every cached query (orders, admin lists, wishlist…)
+  // so no previous-user data lingers for the next person on this browser.
+  const clearSession = () => {
+    dispatch(logoutAction())
+    dispatch(baseApi.util.resetApiState())
+  }
+
+  const logout = () => clearSession()
 
   const logoutAsync = async () => {
+    // Tell the server to destroy the session + clear the refresh cookie first,
+    // then wipe local state regardless of whether that call succeeded.
     try { await triggerLogout().unwrap() } catch { /* best effort */ }
-    dispatch(logoutAction())
+    clearSession()
   }
 
   return { user, isAuthenticated, isSeller, isAdmin, isHydrating, logout, logoutAsync }

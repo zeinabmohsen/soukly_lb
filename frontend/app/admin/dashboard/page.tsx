@@ -60,15 +60,17 @@ const ORDER_STATUS_CFG: Record<string, { label: string; cls: string }> = {
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const { user, isAdmin, logoutAsync } = useAuth()
+  const { user, isAdmin, isHydrating, logoutAsync } = useAuth()
   const { toast } = useToast()
   const [userSearch, setUserSearch] = useState("")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
-    if (mounted && !isAdmin) router.push("/login")
-  }, [mounted, isAdmin, router])
+    // Wait for hydration to settle before deciding — otherwise a freshly
+    // reloaded admin gets bounced to /login while /auth/me is still in flight.
+    if (mounted && !isHydrating && !isAdmin) router.push("/login")
+  }, [mounted, isHydrating, isAdmin, router])
 
   const { data: storesData, isLoading: storesLoading } = useGetAdminStoresQuery({ status: "all" }, { skip: !isAdmin })
   const { data: usersData,  isLoading: usersLoading  } = useGetUsersQuery(undefined,  { skip: !isAdmin })

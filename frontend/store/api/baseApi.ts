@@ -14,7 +14,11 @@ import { updateToken } from "../slices/authSlice"
 const REFRESH_LEAD_MS = 60 * 1000
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1",
+  // Same-origin by default: the browser hits the app's own domain and Next.js
+  // rewrites() (see next.config.mjs) proxies /api/* to the real backend. This
+  // keeps the refresh-token cookie first-party so it survives reloads in Safari
+  // and other browsers that block third-party cookies.
+  baseUrl: process.env.NEXT_PUBLIC_API_URL ?? "/api/v1",
   credentials: "include",
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as { auth: { accessToken: string | null } }).auth.accessToken

@@ -9,17 +9,19 @@ import { Menu, Sparkles } from "lucide-react"
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { isAuthenticated, isSeller } = useAuth()
+  const { isAuthenticated, isSeller, isHydrating } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    if (mounted && (!isAuthenticated || !isSeller)) {
+    // Don't redirect while /auth/me is still verifying the stored user —
+    // otherwise a reloaded seller is kicked to /login before hydration settles.
+    if (mounted && !isHydrating && (!isAuthenticated || !isSeller)) {
       router.push("/login")
     }
-  }, [mounted, isAuthenticated, isSeller, router])
+  }, [mounted, isHydrating, isAuthenticated, isSeller, router])
 
   // Close the drawer on route changes (lock body scroll while open)
   useEffect(() => {

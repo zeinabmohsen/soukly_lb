@@ -29,6 +29,16 @@ const rawBaseQuery = fetchBaseQuery({
 
 let refreshPromise: Promise<string | null> | null = null
 
+// Tracks a refresh initiated OUTSIDE performRefresh — specifically the
+// boot-time /auth/refresh that AuthInitializer fires as an RTK mutation. That
+// call goes straight through rawBaseQuery (it IS the refresh endpoint), so it
+// can't share `refreshPromise`. Without coordination, a protected query that
+// mounts at boot (e.g. an admin/seller page querying on the optimistic role
+// from localStorage) would 401 and fire a SECOND, racing /auth/refresh in the
+// same tab — rotating the token twice and risking a reuse-detection logout.
+// While this is set, the reactive/pre-emptive paths await it instead.
+let externalRefresh: Promise<void> | null = null
+
 const performRefresh = async (
   api: Parameters<BaseQueryFn>[1],
   extraOptions: Parameters<BaseQueryFn>[2],
@@ -67,10 +77,32 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
   const isRefreshCall =
     typeof args === "object" && args !== null && "url" in args && (args as FetchArgs).url === "/auth/refresh"
 
+  // This IS the boot/explicit refresh call. Publish it as `externalRefresh` so
+  // any concurrent request in this tab waits for it rather than firing its own,
+  // and dispatch the new token immediately on success so the token is already
+  // in state the moment the promise resolves.
+  if (isRefreshCall) {
+    let release!: () => void
+    externalRefresh = new Promise<void>((r) => { release = r })
+    try {
+      const result = await rawBaseQuery(args, api, extraOptions)
+      const token = (result.data as { access_token?: string } | undefined)?.access_token
+      if (token) api.dispatch(updateToken(token))
+      return result
+    } finally {
+      release()
+      externalRefresh = null
+    }
+  }
+
+  // If a boot/explicit refresh is already in flight, wait for it — it may
+  // mint the token this request needs, avoiding a redundant second refresh.
+  if (externalRefresh) await externalRefresh
+
   // Pre-emptive refresh: if our access token is close to expiring, refresh
   // BEFORE making the request so the request goes out with a fresh token.
   // performRefresh dedupes parallel callers via refreshPromise.
-  if (!isRefreshCall && tokenNeedsRefresh(api.getState())) {
+  if (tokenNeedsRefresh(api.getState())) {
     await performRefresh(api, extraOptions)
   }
 
@@ -78,7 +110,13 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 
   // Reactive refresh: server still said 401 (maybe our exp was wrong, clock
   // skew, token got revoked, etc). Refresh and retry once.
-  if (result.error?.status === 401 && !isRefreshCall) {
+  if (result.error?.status === 401) {
+    // A boot refresh may have started since we last checked — prefer it.
+    if (externalRefresh) {
+      await externalRefresh
+      result = await rawBaseQuery(args, api, extraOptions)
+      if (result.error?.status !== 401) return result
+    }
     const newToken = await performRefresh(api, extraOptions)
     if (newToken) {
       result = await rawBaseQuery(args, api, extraOptions)

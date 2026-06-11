@@ -1,12 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
-import { useGetMeQuery } from "@/store/api/authApi"
+import { useEffect, useRef } from "react"
+import { useRefreshSessionMutation } from "@/store/api/authApi"
 import { useAppDispatch } from "@/hooks/useAppDispatch"
-import { useAppSelector } from "@/hooks/useAppSelector"
 import {
-  selectAccessToken,
-  selectIsHydrating,
   setCredentials,
   finishHydration,
 } from "@/store/slices/authSlice"
@@ -15,45 +12,45 @@ import {
  * Runs once on mount and reconciles the persisted user with the server.
  *
  * On first paint, authSlice may have a `user` loaded from localStorage but no
- * accessToken (it's memory-only). We call /auth/me, which triggers the
- * pre-emptive refresh in baseApi via the refresh cookie. If the cookie is still
- * valid, we get a fresh user + token and the app is logged in. If the cookie
- * has expired since the last visit, /auth/me returns 401 and we clear the stale
- * local user via finishHydration({ ok: false }).
+ * accessToken (it's memory-only). We hit /auth/refresh ONCE — it reads the
+ * httpOnly refresh cookie and, if it's still valid, returns a fresh user + a
+ * new access token in a single round-trip. (The old approach called /auth/me
+ * first, which was guaranteed to 401 since there's never a token at boot, then
+ * refreshed, then retried /auth/me — three requests for what refresh does in
+ * one.)
  *
- * Until this resolves, `isHydrating` stays true and selectIsAuthenticated returns
- * false, so the UI doesn't briefly show "logged in" before flipping to "logged
- * out" when the cookie turns out to be dead.
+ * Until this resolves, `isHydrating` stays true and selectIsAuthenticated is
+ * treated cautiously by auth-gated pages, so the UI doesn't flash "logged in"
+ * before flipping to "logged out" when the cookie turns out to be dead.
+ *
+ * Failure handling: only a definitive auth failure (400/401 — the cookie is
+ * gone/expired/invalid) clears the stale stored user. A network error or 5xx
+ * (e.g. the backend cold-starting on Render's free tier) keeps the optimistic
+ * user from localStorage so a transient blip doesn't log anyone out.
  */
 export function AuthInitializer() {
   const dispatch = useAppDispatch()
-  const accessToken = useAppSelector(selectAccessToken)
-  const isHydrating = useAppSelector(selectIsHydrating)
-  const { data, isLoading, isError, error } = useGetMeQuery()
+  const [refreshSession] = useRefreshSessionMutation()
+  const ranRef = useRef(false)
 
   useEffect(() => {
-    if (isLoading) return
+    // StrictMode mounts effects twice in dev; guard so we only fire once.
+    if (ranRef.current) return
+    ranRef.current = true
 
-    if (data?.user && accessToken) {
-      // Successful hydration: fresh user + valid token (token came from a
-      // pre-emptive refresh inside baseApi if the original was expired).
-      dispatch(setCredentials({ user: data.user, accessToken }))
-      return
-    }
-
-    if (isHydrating) {
-      // /auth/me failed. ONLY treat a definitive 401 as "logged out" — that
-      // means the refresh cookie is gone/expired and the session is truly dead,
-      // so we clear the stale stored user. A network error or 5xx (e.g. the
-      // backend cold-starting on Render's free tier) must NOT log the user out:
-      // keep the optimistic user from localStorage and let a later request
-      // recover the token. baseApi already does a 401→refresh→retry, so if we
-      // still see 401 here the refresh genuinely failed.
-      const status = (error as { status?: number | string } | undefined)?.status
-      const definitivelyUnauthorized = status === 401
-      dispatch(finishHydration({ ok: !definitivelyUnauthorized }))
-    }
-  }, [data, accessToken, isLoading, isError, error, isHydrating, dispatch])
+    refreshSession()
+      .unwrap()
+      .then(({ user, access_token }) => {
+        dispatch(setCredentials({ user, accessToken: access_token }))
+      })
+      .catch((err: { status?: number | string }) => {
+        const status = err?.status
+        const authFailure = status === 401 || status === 400
+        // ok:true keeps any optimistic stored user (transient failure);
+        // ok:false clears it (definitively unauthenticated).
+        dispatch(finishHydration({ ok: !authFailure }))
+      })
+  }, [refreshSession, dispatch])
 
   return null
 }

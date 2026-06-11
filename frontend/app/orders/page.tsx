@@ -52,7 +52,7 @@ function OrderIdCopyButton({ id }: { id: string }) {
 }
 
 export default function OrdersPage() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isHydrating } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [offset, setOffset] = useState(0)
@@ -63,8 +63,10 @@ export default function OrdersPage() {
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation()
 
   useEffect(() => {
-    if (!isAuthenticated) router.push("/login")
-  }, [isAuthenticated, router])
+    // Wait for hydration to settle before redirecting — otherwise a reloaded
+    // user is kicked to /login while /auth/refresh is still in flight.
+    if (!isHydrating && !isAuthenticated) router.push("/login")
+  }, [isHydrating, isAuthenticated, router])
 
   if (!isAuthenticated) return null
 

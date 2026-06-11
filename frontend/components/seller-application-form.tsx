@@ -470,8 +470,8 @@ export default function SellerApplicationForm() {
                   className="mt-0.5"
                 />
                 <span className="text-sm leading-relaxed">
-                  I agree to Soukly's <Link href="#" className="text-primary hover:underline">Terms</Link> and{" "}
-                  <Link href="#" className="text-primary hover:underline">Privacy Policy</Link>, and confirm the information is accurate.
+                  I agree to Soukly's <Link href="/terms" target="_blank" className="text-primary hover:underline">Terms</Link> and{" "}
+                  <Link href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>, and confirm the information is accurate.
                 </span>
               </label>
 

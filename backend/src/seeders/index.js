@@ -13,6 +13,7 @@ const {
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
   applySubscriptionPaymentsTable,
+  applySessionRotationGraceColumns,
 } = require("./migrations");
 const { seedSubscriptionPayments } = require("./subscriptionPayments");
 
@@ -34,6 +35,7 @@ async function runSeeds() {
   await applyStoreSocialColumns(sequelize);
   await applyUserPasswordVersionColumn(sequelize);
   await applySubscriptionPaymentsTable(sequelize);
+  await applySessionRotationGraceColumns(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

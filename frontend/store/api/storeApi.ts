@@ -46,6 +46,8 @@ export interface Store {
   is_founding_seller: boolean
   category?: { id: string; name: string; slug: string; icon?: string }
   StoreCategories?: StoreCategory[]
+  // Present on admin endpoints (GET /admin/stores, /admin/stores/:id) only.
+  owner?: { id: string; name: string; email: string; phone?: string | null; created_at?: string }
 }
 
 export interface PaginatedStores {
@@ -84,6 +86,60 @@ export interface BillingHistory {
   }
 }
 
+// Admin: a subscription payment annotated with the owning store.
+export interface AdminPayment extends SubscriptionPayment {
+  store?: { id: string; name: string; slug: string }
+}
+
+export interface AdminBilling {
+  data: AdminPayment[]
+  total: number
+  limit: number
+  offset: number
+  has_more: boolean
+  summary: {
+    total_revenue: number
+    pending_amount: number
+    refunded_amount: number
+    paid_count: number
+    pending_count: number
+    failed_count: number
+    refunded_count: number
+    active_subscriptions: number
+    trialing_subscriptions: number
+    mrr: number
+    currency: string
+  }
+}
+
+// Admin: full operational detail for a single store.
+export interface AdminStoreDetail {
+  store: Store & {
+    owner?: { id: string; name: string; email: string; phone: string | null; created_at: string }
+    created_at?: string
+    review_count?: number
+  }
+  stats: {
+    product_count: number
+    order_count: number
+    follower_count: number
+    review_count: number
+    rating: number
+    gmv: number
+    subscription_revenue: number
+  }
+  payments: SubscriptionPayment[]
+  recent_orders: Array<{
+    id: string
+    status: string
+    total: number | string
+    total_amount?: number
+    created_at: string
+    shipping_address?: { name?: string }
+    items?: unknown[]
+  }>
+}
+
 export const storeApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getStores: builder.query<
@@ -106,6 +162,37 @@ export const storeApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "/admin/stores", params: params ?? {} }),
       transformResponse: (res: PaginatedStores) => numerifyPaginated(res, STORE_NUM_FIELDS),
       providesTags: ["Store"],
+    }),
+    // Admin-only: full operational detail for one store (owner, stats, billing,
+    // recent orders). Hits /admin/stores/:id, which ignores approval status.
+    getAdminStoreDetail: builder.query<AdminStoreDetail, string>({
+      query: (id) => `/admin/stores/${id}`,
+      transformResponse: (res: AdminStoreDetail) => ({
+        ...res,
+        store: numerify(res.store, STORE_NUM_FIELDS) as AdminStoreDetail["store"],
+        payments: res.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
+        recent_orders: res.recent_orders.map((o) => ({
+          ...o,
+          total_amount: Number(o.total_amount ?? o.total),
+        })),
+      }),
+      providesTags: (_r, _e, id) => [{ type: "Store", id }],
+    }),
+    // Admin-only: platform-wide subscription billing feed + summary.
+    getAdminBilling: builder.query<AdminBilling, { status?: PaymentStatus; limit?: number; offset?: number } | void>({
+      query: (params) => ({ url: "/admin/billing", params: params ?? {} }),
+      transformResponse: (res: AdminBilling) => ({
+        ...res,
+        data: res.data.map((p) => ({ ...p, amount: Number(p.amount) })),
+        summary: {
+          ...res.summary,
+          total_revenue: Number(res.summary.total_revenue),
+          pending_amount: Number(res.summary.pending_amount),
+          refunded_amount: Number(res.summary.refunded_amount),
+          mrr: Number(res.summary.mrr),
+        },
+      }),
+      providesTags: ["Billing"],
     }),
     getStoreBySlug: builder.query<Store, string>({
       query: (slug) => `/stores/${slug}`,
@@ -204,6 +291,8 @@ export const storeApi = baseApi.injectEndpoints({
 export const {
   useGetStoresQuery,
   useGetAdminStoresQuery,
+  useGetAdminStoreDetailQuery,
+  useGetAdminBillingQuery,
   useGetStoreBySlugQuery,
   useGetStoreByIdQuery,
   useGetMyStoreQuery,

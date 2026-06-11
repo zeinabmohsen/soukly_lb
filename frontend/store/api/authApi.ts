@@ -17,6 +17,14 @@ export const authApi = baseApi.injectEndpoints({
     logoutUser: builder.mutation<void, void>({
       query: () => ({ url: "/auth/logout", method: "POST" }),
     }),
+    // Boot-time session restore. The refresh cookie is httpOnly, so the only way
+    // to know if we're still logged in is to ask: this returns a fresh user +
+    // access token in ONE request (vs the old /auth/me → 401 → refresh → retry
+    // three-request dance). baseApi treats /auth/refresh as the refresh call, so
+    // it won't recursively pre-empt/retry this.
+    refreshSession: builder.mutation<AuthResponse, void>({
+      query: () => ({ url: "/auth/refresh", method: "POST" }),
+    }),
     getMe: builder.query<{ user: User }, void>({
       query: () => "/auth/me",
       providesTags: ["User"],
@@ -34,6 +42,7 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useLogoutUserMutation,
+  useRefreshSessionMutation,
   useGetMeQuery,
   useForgotPasswordMutation,
   useResetPasswordMutation,

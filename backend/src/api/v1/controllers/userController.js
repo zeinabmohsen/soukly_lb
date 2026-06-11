@@ -9,6 +9,8 @@ const {
 } = require("../services/userService");
 const { buildPaginationParams, buildPaginationMeta } = require("../../../utils/pagination");
 const asyncHandler = require("../../../utils/asyncHandler");
+const { sendSellerDecisionEmail } = require("../../../utils/email");
+const { Store } = require("../models");
 
 const getAllUsers = asyncHandler(async (req, res) => {
   const { limit, offset } = buildPaginationParams(req.query);
@@ -63,6 +65,22 @@ const updateSellerStatus = asyncHandler(async (req, res) => {
     seller_status: status,
     is_seller: status === "approved",
   });
+
+  // Email the applicant on a definitive decision (not on a reset to "pending").
+  // Best-effort — a mail failure must not fail the status change.
+  if (status === "approved" || status === "rejected") {
+    try {
+      const store = await Store.findOne({ where: { owner_id: user.id }, attributes: ["name"] });
+      await sendSellerDecisionEmail({
+        to: user.email,
+        name: user.name,
+        storeName: store?.name,
+        approved: status === "approved",
+      });
+    } catch (err) {
+      console.error("[userController] failed to send seller decision email:", err.message);
+    }
+  }
 
   res.status(200).json(user);
 });

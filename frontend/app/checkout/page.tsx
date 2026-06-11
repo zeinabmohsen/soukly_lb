@@ -37,7 +37,7 @@ interface ShippingForm {
 const EMPTY_FORM: ShippingForm = { name: "", phone: "", email: "", address: "", city: "" }
 
 export default function CheckoutPage() {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, isHydrating, user } = useAuth()
   const { items, clearCart } = useCart()
   const router = useRouter()
   const { toast } = useToast()
@@ -81,10 +81,13 @@ export default function CheckoutPage() {
     [savedAddresses, selectedAddressId],
   )
 
-  if (!isAuthenticated) {
-    router.push("/login?redirect=/checkout")
-    return null
-  }
+  // Redirect in an effect (never during render), and only once hydration has
+  // settled so a reloaded shopper isn't bounced while /auth/refresh is pending.
+  useEffect(() => {
+    if (!isHydrating && !isAuthenticated) router.push("/login?redirect=/checkout")
+  }, [isHydrating, isAuthenticated, router])
+
+  if (!isAuthenticated) return null
 
   if (items.length === 0) {
     return (

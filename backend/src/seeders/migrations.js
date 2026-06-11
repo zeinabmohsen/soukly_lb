@@ -197,6 +197,21 @@ async function applySubscriptionPaymentsTable(sequelize) {
   console.log("[migrate] subscription_payments table ensured");
 }
 
+async function applySessionRotationGraceColumns(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "prev_refresh_token_hash" VARCHAR(255)`,
+    { type: QueryTypes.RAW },
+  );
+  await sequelize.query(
+    `ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "prev_rotated_at" TIMESTAMP WITH TIME ZONE`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] sessions rotation-grace columns ensured");
+}
+
 module.exports = {
   applySubscriptionColumns,
   applySellerDraftColumn,
@@ -207,4 +222,5 @@ module.exports = {
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
   applySubscriptionPaymentsTable,
+  applySessionRotationGraceColumns,
 };

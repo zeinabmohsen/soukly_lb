@@ -51,4 +51,61 @@ async function sendEmail({ to, subject, text, html }) {
   return { delivered: true, transport: "smtp" };
 }
 
-module.exports = { sendEmail };
+// Where the seller dashboard lives — used in notification CTAs. Override with
+// APP_URL in prod (e.g. https://soukly.app).
+const APP_URL = process.env.APP_URL || "http://localhost:3000";
+
+// Minimal branded wrapper so the transactional emails look consistent without
+// pulling in a templating dependency.
+function wrap(title, bodyHtml) {
+  return `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:20px;margin:0 0 16px">${title}</h1>
+  ${bodyHtml}
+  <p style="margin-top:32px;font-size:12px;color:#888">— The Soukly team</p>
+</div>`;
+}
+
+// Seller decision email — sent when an admin approves or rejects a seller's
+// application / store. Best-effort: callers wrap this in try/catch so a mail
+// failure never blocks the approval itself.
+async function sendSellerDecisionEmail({ to, name, storeName, approved }) {
+  const who = name || "there";
+  const store = storeName ? `"${storeName}"` : "your store";
+
+  if (approved) {
+    return sendEmail({
+      to,
+      subject: "Your Soukly store has been approved 🎉",
+      text:
+        `Hi ${who},\n\n` +
+        `Great news — ${store} has been approved and you now have access to your seller dashboard.\n\n` +
+        `Start your 30-day free trial, add products, and customize your storefront here:\n${APP_URL}/seller\n\n` +
+        `Welcome to Soukly!`,
+      html: wrap(
+        "Your store has been approved 🎉",
+        `<p>Hi ${who},</p>
+         <p>Great news — <strong>${store}</strong> has been approved and you now have access to your seller dashboard.</p>
+         <p><a href="${APP_URL}/seller" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Open seller dashboard</a></p>
+         <p>Start your 30-day free trial, add products, and customize your storefront.</p>`
+      ),
+    });
+  }
+
+  return sendEmail({
+    to,
+    subject: "Update on your Soukly seller application",
+    text:
+      `Hi ${who},\n\n` +
+      `Thank you for your interest in selling on Soukly. After reviewing ${store}, we're unable to approve your application at this time.\n\n` +
+      `If you believe this was a mistake or would like guidance on reapplying, just reply to this email.\n\n` +
+      `Thank you for your understanding.`,
+    html: wrap(
+      "Update on your seller application",
+      `<p>Hi ${who},</p>
+       <p>Thank you for your interest in selling on Soukly. After reviewing <strong>${store}</strong>, we're unable to approve your application at this time.</p>
+       <p>If you believe this was a mistake or would like guidance on reapplying, just reply to this email.</p>`
+    ),
+  });
+}
+
+module.exports = { sendEmail, sendSellerDecisionEmail };

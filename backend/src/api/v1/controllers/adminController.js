@@ -1,6 +1,6 @@
 const asyncHandler = require("../../../utils/asyncHandler");
 const { buildPaginationParams, buildPaginationMeta } = require("../../../utils/pagination");
-const { fetchAllStoresAdmin, fetchStoreByIdAdmin } = require("../services/storeService");
+const { fetchAllStoresAdmin, fetchStoreByIdAdmin, fetchPlatformBilling } = require("../services/storeService");
 const { fetchAllOrdersAdmin } = require("../services/orderService");
 
 const VALID_STATUSES = new Set(["pending", "approved", "all"]);
@@ -23,13 +23,30 @@ const getAdminStores = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /admin/stores/:id  — admin can fetch any store regardless of approval.
+// GET /admin/stores/:id  — full operational detail for one store (owner,
+// stats, billing history, recent orders), regardless of approval status.
 const getAdminStoreById = asyncHandler(async (req, res) => {
-  const store = await fetchStoreByIdAdmin(req.params.id);
-  if (!store) {
+  const detail = await fetchStoreByIdAdmin(req.params.id);
+  if (!detail) {
     return res.status(404).json({ message: "Store not found" });
   }
-  res.status(200).json(store);
+  res.status(200).json(detail);
+});
+
+// GET /admin/billing — platform-wide subscription billing feed + summary.
+// Query: ?status=paid|pending|failed|refunded, paginated.
+const VALID_PAYMENT_STATUSES = new Set(["paid", "pending", "failed", "refunded"]);
+const getAdminBilling = asyncHandler(async (req, res) => {
+  const { limit, offset } = buildPaginationParams(req.query);
+  const status = VALID_PAYMENT_STATUSES.has(req.query.status) ? req.query.status : null;
+
+  const result = await fetchPlatformBilling({ limit, offset, status });
+
+  res.status(200).json({
+    data: result.payments,
+    summary: result.summary,
+    ...buildPaginationMeta({ total: result.total, limit, offset }),
+  });
 });
 
 // GET /admin/orders — admin view of every order across all stores.
@@ -52,4 +69,5 @@ module.exports = {
   getAdminStores,
   getAdminStoreById,
   getAdminOrders,
+  getAdminBilling,
 };

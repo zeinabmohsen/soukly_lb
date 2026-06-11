@@ -15,6 +15,7 @@ const {
   fetchMyPayments,
 } = require("../services/storeService");
 const { clearSellerDraft } = require("../services/userService");
+const { sendSellerDecisionEmail } = require("../../../utils/email");
 
 // Public — marketplace listing
 const getAllStores = asyncHandler(async (req, res) => {
@@ -149,6 +150,21 @@ const setStoreApproval = asyncHandler(async (req, res) => {
   const store = await approveStore(req.params.id, approved);
   if (!store) {
     return res.status(404).json({ message: "Store not found" });
+  }
+
+  // Notify the seller of the decision. Best-effort — a mail failure must not
+  // fail the approval (which has already been persisted above).
+  if (store.owner?.email) {
+    try {
+      await sendSellerDecisionEmail({
+        to: store.owner.email,
+        name: store.owner.name,
+        storeName: store.name,
+        approved,
+      });
+    } catch (err) {
+      console.error("[storeController] failed to send seller decision email:", err.message);
+    }
   }
 
   res.status(200).json(store);

@@ -23,7 +23,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const { toast } = useToast()
   const dispatch = useAppDispatch()
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isHydrating } = useAuth()
   const accessToken = useAppSelector(selectAccessToken)
   const [updateUser, { isLoading }] = useUpdateUserMutation()
 
@@ -32,8 +32,9 @@ export default function ProfilePage() {
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!isAuthenticated) router.push("/login?redirect=/profile")
-  }, [isAuthenticated, router])
+    // Don't redirect mid-hydration — /auth/refresh may still confirm the session.
+    if (!isHydrating && !isAuthenticated) router.push("/login?redirect=/profile")
+  }, [isHydrating, isAuthenticated, router])
 
   // Hydrate form once we have the user
   useEffect(() => {

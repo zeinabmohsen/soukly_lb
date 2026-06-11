@@ -1,5 +1,9 @@
-const { Op } = require("sequelize");
-const { Store, GlobalCategory, StoreCategory, User, SubscriptionPayment } = require("../models");
+const { Op, fn, col } = require("sequelize");
+const { Store, GlobalCategory, StoreCategory, User, SubscriptionPayment, Product, Order, OrderItem, StoreFollow } = require("../models");
+
+// Monthly price per plan (USD). Mirrors frontend lib/plans.ts — used to estimate
+// platform MRR from currently-active subscriptions.
+const PLAN_PRICES = { starter: 10, pro: 25, premium: 50 };
 
 const PUBLIC_STORE_INCLUDES = [
   { model: GlobalCategory, as: "category", attributes: ["id", "name", "slug", "icon"] },
@@ -106,13 +110,108 @@ async function fetchAllStoresAdmin({ limit, offset, status = "all", search }) {
 }
 
 // ── Admin: single store by id, regardless of approval ───────────────────────
+// Returns the full store plus an operational snapshot — owner contact,
+// catalog/order/follower counts, lifetime revenue, recent orders, and the
+// store's subscription-payment (billing) history.
 async function fetchStoreByIdAdmin(id) {
-  return Store.findByPk(id, {
+  const store = await Store.findByPk(id, {
     include: [
       ...PUBLIC_STORE_INCLUDES,
-      { model: User, as: "owner", attributes: ["id", "name", "email", "phone"] },
+      { model: User, as: "owner", attributes: ["id", "name", "email", "phone", "created_at"] },
     ],
   });
+  if (!store) return null;
+
+  const [productCount, orderCount, followerCount, revenueRow, payments, recentOrders] = await Promise.all([
+    Product.count({ where: { store_id: id } }),
+    Order.count({ where: { store_id: id } }),
+    StoreFollow.count({ where: { store_id: id } }),
+    Order.findOne({
+      where: { store_id: id, status: { [Op.ne]: "cancelled" } },
+      attributes: [[fn("COALESCE", fn("SUM", col("total")), 0), "revenue"]],
+      raw: true,
+    }),
+    SubscriptionPayment.findAll({
+      where: { store_id: id },
+      order: [["period_start", "DESC"]],
+      limit: 24,
+    }),
+    Order.findAll({
+      where: { store_id: id },
+      order: [["created_at", "DESC"]],
+      limit: 10,
+      include: [{ model: OrderItem, as: "items" }],
+    }),
+  ]);
+
+  const subscriptionRevenue = payments
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+  return {
+    store,
+    stats: {
+      product_count: productCount,
+      order_count: orderCount,
+      follower_count: followerCount,
+      review_count: store.review_count ?? 0,
+      rating: store.rating ?? 0,
+      gmv: Number(parseFloat(revenueRow?.revenue ?? 0).toFixed(2)),
+      subscription_revenue: Number(subscriptionRevenue.toFixed(2)),
+    },
+    payments,
+    recent_orders: recentOrders,
+  };
+}
+
+// ── Admin: platform-wide subscription billing ────────────────────────────────
+// A paginated feed of subscription charges across every store, plus a rolled-up
+// summary the dashboard shows above the table: lifetime collected revenue,
+// pending/failed/refunded counts, live subscription counts, and estimated MRR
+// from currently-active plans.
+async function fetchPlatformBilling({ limit, offset, status }) {
+  const where = {};
+  if (status) where.status = status;
+
+  const { rows: payments, count: total } = await SubscriptionPayment.findAndCountAll({
+    where,
+    limit,
+    offset,
+    order: [["period_start", "DESC"]],
+    include: [{ model: Store, as: "store", attributes: ["id", "name", "slug"] }],
+  });
+
+  // Summary is computed across ALL payments / stores, not just the current page.
+  const [allPayments, stores] = await Promise.all([
+    SubscriptionPayment.findAll({ attributes: ["amount", "status"], raw: true }),
+    Store.findAll({ attributes: ["subscription_status", "plan_id"], raw: true }),
+  ]);
+
+  const sumBy = (s) => allPayments.filter((p) => p.status === s).reduce((acc, p) => acc + parseFloat(p.amount), 0);
+  const countBy = (s) => allPayments.filter((p) => p.status === s).length;
+
+  const activeStores = stores.filter((s) => s.subscription_status === "active");
+  const mrr = activeStores.reduce((acc, s) => acc + (PLAN_PRICES[s.plan_id] ?? 0), 0);
+
+  return {
+    payments,
+    total,
+    limit,
+    offset,
+    summary: {
+      total_revenue: Number(sumBy("paid").toFixed(2)),
+      pending_amount: Number(sumBy("pending").toFixed(2)),
+      refunded_amount: Number(sumBy("refunded").toFixed(2)),
+      paid_count: countBy("paid"),
+      pending_count: countBy("pending"),
+      failed_count: countBy("failed"),
+      refunded_count: countBy("refunded"),
+      active_subscriptions: activeStores.length,
+      trialing_subscriptions: stores.filter((s) => s.subscription_status === "trialing").length,
+      mrr: Number(mrr.toFixed(2)),
+      currency: payments[0]?.currency || "USD",
+    },
+  };
 }
 
 // Keep in sync with frontend lib/plans.ts — both must list the same plan ids.
@@ -152,7 +251,9 @@ async function updateStore(id, data) {
 }
 
 async function approveStore(id, approved) {
-  const store = await Store.findByPk(id);
+  const store = await Store.findByPk(id, {
+    include: [{ model: User, as: "owner", attributes: ["id", "name", "email"] }],
+  });
   if (!store) return null;
   return store.update({ is_approved: approved });
 }
@@ -276,6 +377,7 @@ module.exports = {
   fetchStoreByOwner,
   fetchAllStoresAdmin,
   fetchStoreByIdAdmin,
+  fetchPlatformBilling,
   createStore,
   updateStore,
   approveStore,

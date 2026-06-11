@@ -10,6 +10,12 @@ const { sendEmail } = require("../../../utils/email");
 
 const ACCESS_EXPIRES_IN = "15m";
 const REFRESH_DAYS = 365;
+// How long the just-rotated-away refresh token stays acceptable. Covers the
+// brief window where a second browser tab (or a retried request) fires a
+// refresh with the token that another concurrent refresh already rotated. Long
+// enough to absorb a slow round-trip, short enough that a genuinely stolen old
+// token is still rejected as reuse.
+const REFRESH_GRACE_MS = 60 * 1000;
 const REFRESH_COOKIE_NAME = "soukly_refresh_token";
 const PASSWORD_RESET_TTL_MIN = 60;
 
@@ -82,7 +88,15 @@ async function createSession(userId) {
 async function rotateSession(session, rawToken) {
   const refreshTokenHash = await bcrypt.hash(rawToken, 10);
   const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
-  await session.update({ refresh_token_hash: refreshTokenHash, expires_at: expiresAt });
+  await session.update({
+    // Remember the hash we're rotating away from so a concurrent refresh that
+    // still carries it (another tab) is honoured for REFRESH_GRACE_MS rather
+    // than tripping reuse-detection.
+    prev_refresh_token_hash: session.refresh_token_hash,
+    prev_rotated_at: new Date(),
+    refresh_token_hash: refreshTokenHash,
+    expires_at: expiresAt,
+  });
   return { refreshToken: buildRefreshTokenString(session.id, rawToken), expiresAt };
 }
 
@@ -189,9 +203,23 @@ const refreshToken = asyncHandler(async (req, res) => {
 
   const matches = await bcrypt.compare(parsed.rawToken, session.refresh_token_hash);
   if (!matches) {
-    await Session.destroy({ where: { user_id: session.user_id } });
-    clearRefreshCookie(req, res);
-    return res.status(401).json({ message: "Invalid refresh token" });
+    // Concurrency tolerance: if this is the token we *just* rotated away from
+    // and we're still inside the grace window, it's almost certainly a second
+    // tab refreshing in parallel — not an attacker replaying a stolen token.
+    // Accept it and rotate again. Outside the window (or a different token),
+    // treat it as reuse and nuke every session for the user.
+    const withinGrace =
+      session.prev_refresh_token_hash &&
+      session.prev_rotated_at &&
+      Date.now() - new Date(session.prev_rotated_at).getTime() < REFRESH_GRACE_MS;
+    const prevMatches = withinGrace
+      ? await bcrypt.compare(parsed.rawToken, session.prev_refresh_token_hash)
+      : false;
+    if (!prevMatches) {
+      await Session.destroy({ where: { user_id: session.user_id } });
+      clearRefreshCookie(req, res);
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
   }
 
   const user = await User.findByPk(session.user_id);

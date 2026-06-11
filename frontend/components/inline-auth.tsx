@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import {
   Mail, Lock, User, Phone, Eye, EyeOff, LogIn, UserPlus, Loader2, Check, AlertCircle,
 } from "lucide-react"
@@ -16,8 +17,31 @@ import { useAppDispatch } from "@/hooks/useAppDispatch"
 const PASSWORD_CHECKS = [
   { label: "8+ characters",  test: (v: string) => v.length >= 8 },
   { label: "One uppercase",  test: (v: string) => /[A-Z]/.test(v) },
+  { label: "One lowercase",  test: (v: string) => /[a-z]/.test(v) },
   { label: "One number",     test: (v: string) => /\d/.test(v) },
 ]
+
+/**
+ * Turn an RTK Query error into a user-facing message, distinguishing the cause
+ * so we don't tell someone their password is wrong when the server is actually
+ * unreachable (e.g. the backend cold-starting on Render's free tier).
+ *
+ * - FETCH_ERROR / TIMEOUT_ERROR → network problem, not credentials.
+ * - 5xx → server-side failure, not credentials.
+ * - 4xx → genuine rejection; prefer the server's message, else the caller's
+ *   fallback (e.g. "Invalid email or password").
+ */
+function authErrorMessage(err: unknown, credentialFallback: string): string {
+  const e = err as { status?: number | string; data?: { message?: string } }
+  const status = e?.status
+  if (status === "FETCH_ERROR" || status === "TIMEOUT_ERROR") {
+    return "Can't reach the server — check your connection and try again."
+  }
+  if (typeof status === "number" && status >= 500) {
+    return "Something went wrong on our end. Please try again in a moment."
+  }
+  return e?.data?.message ?? credentialFallback
+}
 
 interface AuthResult {
   user: {
@@ -77,8 +101,8 @@ export function InlineAuth({
       const result = await login(loginData).unwrap()
       dispatch(setCredentials({ user: result.user, accessToken: result.access_token }))
       onSuccess?.(result)
-    } catch {
-      setError("Invalid email or password")
+    } catch (err: unknown) {
+      setError(authErrorMessage(err, "Invalid email or password"))
     }
   }
 
@@ -99,8 +123,7 @@ export function InlineAuth({
       dispatch(setCredentials({ user: result.user, accessToken: result.access_token }))
       onSuccess?.(result)
     } catch (err: unknown) {
-      const msg = (err as { data?: { message?: string } })?.data?.message
-      setError(msg ?? "Registration failed. Please try again.")
+      setError(authErrorMessage(err, "Registration failed. Please try again."))
     }
   }
 
@@ -252,7 +275,9 @@ export function InlineAuth({
             </Button>
 
             <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-              By creating an account, you agree to our Terms and Privacy Policy.
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" target="_blank" className="text-primary hover:underline">Terms</Link> and{" "}
+              <Link href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>.
             </p>
           </form>
         ) : (

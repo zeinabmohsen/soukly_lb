@@ -6,13 +6,30 @@ interface AuthResponse {
   access_token: string
 }
 
+// The backend wraps auth payloads in a beachbeds-style envelope:
+//   { success, data: { token, user }, message }
+// Unwrap it here and map `token` → `access_token` so the rest of the app keeps
+// consuming the flat { user, access_token } shape it always has.
+interface AuthEnvelope {
+  success: boolean
+  message: string
+  data: { token: string; user: User }
+}
+
+const unwrapAuth = (response: AuthEnvelope): AuthResponse => ({
+  user: response.data.user,
+  access_token: response.data.token,
+})
+
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    login: builder.mutation<AuthResponse, { email: string; password: string }>({
+    login: builder.mutation<AuthResponse, { email?: string; phone?: string; password: string }>({
       query: (credentials) => ({ url: "/auth/login", method: "POST", body: credentials }),
+      transformResponse: unwrapAuth,
     }),
     register: builder.mutation<AuthResponse, { name: string; email: string; password: string; phone?: string }>({
       query: (data) => ({ url: "/auth/register", method: "POST", body: data }),
+      transformResponse: unwrapAuth,
     }),
     logoutUser: builder.mutation<void, void>({
       query: () => ({ url: "/auth/logout", method: "POST" }),
@@ -24,9 +41,11 @@ export const authApi = baseApi.injectEndpoints({
     // it won't recursively pre-empt/retry this.
     refreshSession: builder.mutation<AuthResponse, void>({
       query: () => ({ url: "/auth/refresh", method: "POST" }),
+      transformResponse: unwrapAuth,
     }),
     getMe: builder.query<{ user: User }, void>({
       query: () => "/auth/me",
+      transformResponse: (response: { data: { user: User } }) => ({ user: response.data.user }),
       providesTags: ["User"],
     }),
     forgotPassword: builder.mutation<{ message: string }, { email: string }>({

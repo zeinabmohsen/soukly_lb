@@ -47,9 +47,14 @@ const performRefresh = async (
   refreshPromise = (async () => {
     const result = await rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions)
     if (result.data) {
-      const { access_token } = result.data as { access_token: string }
-      api.dispatch(updateToken(access_token))
-      return access_token
+      // Backend envelope: { success, data: { token, user }, message }. This path
+      // hits rawBaseQuery directly (not the endpoint's transformResponse), so we
+      // read the raw token out of result.data.data.token ourselves.
+      const token = (result.data as { data?: { token?: string } }).data?.token
+      if (token) {
+        api.dispatch(updateToken(token))
+        return token
+      }
     }
     return null
   })()
@@ -86,7 +91,9 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
     externalRefresh = new Promise<void>((r) => { release = r })
     try {
       const result = await rawBaseQuery(args, api, extraOptions)
-      const token = (result.data as { access_token?: string } | undefined)?.access_token
+      // Same envelope unwrap as performRefresh — this is the raw response, so the
+      // token lives at result.data.data.token.
+      const token = (result.data as { data?: { token?: string } } | undefined)?.data?.token
       if (token) api.dispatch(updateToken(token))
       return result
     } finally {

@@ -75,7 +75,8 @@ export function InlineAuth({
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [signupData, setSignupData] = useState({ name: "", email: "", phone: "", password: "" })
-  const [loginData, setLoginData] = useState({ email: "", password: "" })
+  // Single identifier field — accepts an email or a phone number (beachbeds-style).
+  const [loginData, setLoginData] = useState({ identifier: "", password: "" })
   const [passwordFocused, setPasswordFocused] = useState(false)
 
   const dispatch = useAppDispatch()
@@ -98,11 +99,16 @@ export function InlineAuth({
     e.preventDefault()
     setError("")
     try {
-      const result = await login(loginData).unwrap()
+      // Treat an "@" as an email, otherwise send it as a phone number.
+      const id = loginData.identifier.trim()
+      const credentials = id.includes("@")
+        ? { email: id, password: loginData.password }
+        : { phone: id, password: loginData.password }
+      const result = await login(credentials).unwrap()
       dispatch(setCredentials({ user: result.user, accessToken: result.access_token }))
       onSuccess?.(result)
     } catch (err: unknown) {
-      setError(authErrorMessage(err, "Invalid email or password"))
+      setError(authErrorMessage(err, "Invalid credentials"))
     }
   }
 
@@ -283,17 +289,17 @@ export function InlineAuth({
         ) : (
           <form onSubmit={handleLogin} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="ia-login-email" className="text-sm">Email</Label>
+              <Label htmlFor="ia-login-identifier" className="text-sm">Email or phone</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
-                  id="ia-login-email"
-                  type="email"
-                  value={loginData.email}
-                  onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                  placeholder="you@example.com"
+                  id="ia-login-identifier"
+                  type="text"
+                  value={loginData.identifier}
+                  onChange={(e) => setLoginData({ ...loginData, identifier: e.target.value })}
+                  placeholder="you@example.com or +961 XX XXX XXX"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   className="pl-9 h-11"
                 />
               </div>

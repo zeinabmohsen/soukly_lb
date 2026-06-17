@@ -3,9 +3,11 @@
 import { useEffect, useRef } from "react"
 import { useRefreshSessionMutation } from "@/store/api/authApi"
 import { useAppDispatch } from "@/hooks/useAppDispatch"
+import { useAppSelector } from "@/hooks/useAppSelector"
 import {
   setCredentials,
   finishHydration,
+  selectAccessToken,
 } from "@/store/slices/authSlice"
 
 /**
@@ -31,6 +33,10 @@ import {
 export function AuthInitializer() {
   const dispatch = useAppDispatch()
   const [refreshSession] = useRefreshSessionMutation()
+  // Whether we already booted with a (long-lived, persisted) access token.
+  // Captured at mount; if true the refresh below is a best-effort renewal and a
+  // failure must NOT log us out.
+  const hadTokenAtBoot = useAppSelector((s) => !!selectAccessToken(s))
   const ranRef = useRef(false)
 
   useEffect(() => {
@@ -46,11 +52,14 @@ export function AuthInitializer() {
       .catch((err: { status?: number | string }) => {
         const status = err?.status
         const authFailure = status === 401 || status === 400
-        // ok:true keeps any optimistic stored user (transient failure);
-        // ok:false clears it (definitively unauthenticated).
-        dispatch(finishHydration({ ok: !authFailure }))
+        // Only clear the stored user on a definitive auth failure AND only when
+        // we don't already hold a valid persisted token. With long-lived tokens
+        // the boot refresh is just a renewal — a dead refresh cookie shouldn't
+        // log out a user whose access token is still good. A network error/5xx
+        // (ok:true) also keeps the optimistic user.
+        dispatch(finishHydration({ ok: !authFailure || hadTokenAtBoot }))
       })
-  }, [refreshSession, dispatch])
+  }, [refreshSession, dispatch, hadTokenAtBoot])
 
   return null
 }

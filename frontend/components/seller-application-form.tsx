@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
-  Sparkles, Check, Loader2, AlertCircle, ArrowRight, Star, ShieldCheck, Save, MapPin, Mail,
+  Sparkles, Check, Loader2, AlertCircle, ArrowRight, ArrowLeft, ShieldCheck, Save, Mail, FileText, CheckCircle2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -68,8 +68,16 @@ export default function SellerApplicationForm() {
   const searchParams = useSearchParams()
   const dispatch = useAppDispatch()
   const { toast } = useToast()
-  const { isAuthenticated, isSeller, user } = useAuth()
+  const { isAuthenticated, isSeller, user, isHydrating } = useAuth()
   const accessToken = useAppSelector(selectAccessToken)
+
+  // Auth is backed by localStorage, so on the server (and the very first client
+  // paint) we don't yet know who's logged in. Track mount + the boot session
+  // check so we can show a loader instead of flashing the login card at a user
+  // who is, in fact, already signed in. `authResolving` = "we don't know yet".
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const authResolving = !mounted || isHydrating
 
   const { data: categoriesData } = useGetCategoriesQuery()
   const categories = categoriesData?.data ?? []
@@ -101,6 +109,8 @@ export default function SellerApplicationForm() {
   const [draftRestored, setDraftRestored] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [formData, setFormData] = useState<FormData>(EMPTY)
+  // Wizard step: 1 = store details, 2 = plan, 3 = review & submit.
+  const [step, setStep] = useState<1 | 2 | 3>(1)
 
   // Hydrate form from the server draft once it loads. Sets the "restored"
   // banner only if the draft actually contains user content.
@@ -154,12 +164,22 @@ export default function SellerApplicationForm() {
     [categories, formData.businessCategory],
   )
 
-  const formValid = Boolean(
-    formData.businessName.trim() &&
-    formData.businessCategory &&
-    formData.city &&
-    formData.agreedToTerms,
+  // Step 1 (store details) is the only step with required free-text inputs.
+  const step1Valid = Boolean(
+    formData.businessName.trim() && formData.businessCategory && formData.city,
   )
+  const formValid = Boolean(step1Valid && formData.agreedToTerms)
+
+  // Advance the wizard, validating the current step first. Step 1 must have its
+  // required fields; steps 2 (plan, always has a default) and 3 just move on.
+  const goNext = () => {
+    if (step === 1) {
+      setTouched({ businessName: true, businessCategory: true, city: true })
+      if (!step1Valid) return
+    }
+    setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s))
+  }
+  const goBack = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,7 +189,16 @@ export default function SellerApplicationForm() {
     }
     // Touch everything so missing-field errors appear
     setTouched({ businessName: true, businessCategory: true, city: true })
-    if (!formValid) return
+    // Guard: only the final step submits; earlier Enter-presses just advance.
+    if (step < 3) {
+      goNext()
+      return
+    }
+    if (!formValid) {
+      // Missing a required field from step 1 — send them back to fix it.
+      if (!step1Valid) setStep(1)
+      return
+    }
 
     setApiError("")
     try {
@@ -258,13 +287,15 @@ export default function SellerApplicationForm() {
     )
   }
 
-  // ── Application page (inline auth + form, no redirects) ─────────────────
-  const funnelStep: 1 | 2 = isAuthenticated ? 2 : 1
-
+  // ── Application page (inline auth + wizard, no redirects) ───────────────
   return (
     <div className="container mx-auto px-4 pt-32 pb-8 md:pt-40 md:pb-16">
       <div className="max-w-md mx-auto mb-6 md:mb-10">
-        <SellerFunnelSteps current={funnelStep} />
+        {!authResolving && isAuthenticated ? (
+          <WizardSteps current={step} />
+        ) : (
+          <SellerFunnelSteps current={isAuthenticated ? 2 : 1} />
+        )}
       </div>
 
       {/* Hero / value strip */}
@@ -284,43 +315,40 @@ export default function SellerApplicationForm() {
         </p>
       </div>
 
-      {/* Unauthenticated → inline auth, form preview shown alongside */}
-      {!isAuthenticated && (
-        <div className="max-w-5xl mx-auto grid lg:grid-cols-[1fr_320px] gap-6 md:gap-8 mb-12">
-          <InlineAuth />
-          <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start">
-            <StorePreview
-              name={formData.businessName}
-              description={formData.businessDescription}
-              category={selectedCategory?.name ?? null}
-              city={formData.city}
-              initials="?"
-            />
-            <p className="text-[10px] text-muted-foreground text-center mt-3">
-              {totalStores ? `${totalStores}+ stores already on Soukly` : ""}
-            </p>
-          </aside>
+      {/* Still resolving who's logged in → loader, never the login card. This
+          stops an already-signed-in user from being asked to re-login while the
+          boot session check is in flight or on the first (server) paint. */}
+      {authResolving && (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Draft-restored banner — only when authed, since form is gated */}
-      {isAuthenticated && draftRestored && (
-        <div className="max-w-5xl mx-auto mb-6">
+      {/* Definitely logged out → inline auth, single centered column */}
+      {!authResolving && !isAuthenticated && (
+        <div className="max-w-md mx-auto mb-12">
+          <InlineAuth />
+          <p className="text-[11px] text-muted-foreground text-center mt-4">
+            {totalStores ? `${totalStores}+ stores already on Soukly` : ""}
+          </p>
+        </div>
+      )}
+
+      {!authResolving && isAuthenticated && (
+      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
+        {/* Draft-restored banner */}
+        {draftRestored && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-muted/40 border border-border text-sm">
             <Save className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <p className="flex-1 text-muted-foreground">We restored your saved draft.</p>
-            <button onClick={clearDraft} className="text-foreground font-medium hover:underline">
+            <button type="button" onClick={clearDraft} className="text-foreground font-medium hover:underline">
               Start over
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {isAuthenticated && (
-      <form onSubmit={handleSubmit} className="max-w-5xl mx-auto grid lg:grid-cols-[1fr_320px] gap-6 md:gap-8">
-        {/* Form column */}
-        <div className="space-y-5 md:space-y-6">
-          {/* Store details card */}
+        {/* STEP 1 — Store details */}
+        {step === 1 && (
           <Card>
             <CardContent className="p-5 md:p-8 space-y-5">
               <div>
@@ -407,8 +435,10 @@ export default function SellerApplicationForm() {
               </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Plan card */}
+        {/* STEP 2 — Plan */}
+        {step === 2 && (
           <Card>
             <CardContent className="p-5 md:p-8 space-y-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -451,10 +481,32 @@ export default function SellerApplicationForm() {
               </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Submit card */}
+        {/* STEP 3 — Review & submit */}
+        {step === 3 && (
           <Card>
             <CardContent className="p-5 md:p-8 space-y-4">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold">Review &amp; submit</h2>
+                <p className="text-xs md:text-sm text-muted-foreground mt-1">Double-check your details before applying.</p>
+              </div>
+
+              <dl className="rounded-lg bg-muted/30 border border-border/60 divide-y divide-border/60 text-sm overflow-hidden">
+                {[
+                  { label: "Store", value: formData.businessName.trim() || "—" },
+                  { label: "Category", value: selectedCategory?.name ?? "—" },
+                  { label: "City", value: formData.city || "—" },
+                  { label: "Description", value: formData.businessDescription.trim() || "—" },
+                  { label: "Plan", value: `${selectedPlan.name} · $${selectedPlan.price}/mo` },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-start justify-between gap-4 px-4 py-3">
+                    <dt className="text-muted-foreground flex-shrink-0">{row.label}</dt>
+                    <dd className="font-medium text-right">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+
               {apiError && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -475,42 +527,35 @@ export default function SellerApplicationForm() {
                 </span>
               </label>
 
-              <Button
-                type="submit"
-                size="lg"
-                disabled={!formValid || isSubmitting}
-                className="w-full gap-2 h-12"
-              >
-                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isSubmitting ? "Submitting..." : `Submit application · Start with ${selectedPlan.name}`}
-                {!isSubmitting && <ArrowRight className="w-4 h-4" />}
-              </Button>
-
               <p className="text-[11px] text-muted-foreground text-center">
                 Free during admin review · No charge until you start your trial
               </p>
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        {/* Live preview column */}
-        <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start">
-          <StorePreview
-            name={formData.businessName}
-            description={formData.businessDescription}
-            category={selectedCategory?.name ?? null}
-            city={formData.city}
-            initials={(formData.businessName || user?.name || "?")
-              .split(" ")
-              .map((w) => w[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase() || "?"}
-          />
-          <p className="text-[10px] text-muted-foreground text-center mt-3">
-            {totalStores ? `${totalStores}+ stores already on Soukly` : ""}
-          </p>
-        </aside>
+        {/* Wizard navigation */}
+        <div className="flex items-center justify-between gap-3">
+          {step > 1 ? (
+            <Button type="button" variant="outline" onClick={goBack} className="gap-2 bg-transparent">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </Button>
+          ) : (
+            <span />
+          )}
+
+          {step < 3 ? (
+            <Button type="button" onClick={goNext} className="gap-2 min-w-[140px]">
+              Next <ArrowRight className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button type="submit" size="lg" disabled={!formValid || isSubmitting} className="gap-2 min-w-[200px]">
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSubmitting ? "Submitting..." : "Submit application"}
+              {!isSubmitting && <ArrowRight className="w-4 h-4" />}
+            </Button>
+          )}
+        </div>
       </form>
       )}
     </div>
@@ -542,53 +587,56 @@ function FieldWrapper({
   )
 }
 
-function StorePreview({
-  name, description, category, city, initials,
-}: {
-  name: string
-  description: string
-  category: string | null
-  city: string
-  initials: string
-}) {
+// Compact 3-step progress header for the application wizard.
+function WizardSteps({ current }: { current: 1 | 2 | 3 }) {
+  const steps = [
+    { id: 1 as const, label: "Store details", icon: FileText },
+    { id: 2 as const, label: "Plan",          icon: Sparkles },
+    { id: 3 as const, label: "Confirm",       icon: CheckCircle2 },
+  ]
   return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Live preview</p>
-      <Card className="overflow-hidden border-2">
-        <div className="relative h-32 bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center">
-          <span className="text-4xl font-bold text-primary/40">{initials}</span>
-          <Badge className="absolute top-3 left-3 bg-primary/90 text-primary-foreground gap-1 text-xs">
-            <Sparkles className="w-3 h-3" />
-            New
-          </Badge>
+    <div className="w-full">
+      <p className="text-[10px] md:text-xs font-semibold text-primary uppercase tracking-wider text-center mb-3">
+        Step {current} of {steps.length}
+      </p>
+      <div className="flex items-center justify-between relative">
+        <div className="absolute top-4 left-0 right-0 h-0.5 bg-border -z-10">
+          <div
+            className="h-full bg-primary transition-all duration-500"
+            style={{ width: `${((current - 1) / (steps.length - 1)) * 100}%` }}
+          />
         </div>
-        <div className="p-4 space-y-2">
-          <h3 className="font-bold text-base line-clamp-1">{name || "Your store name"}</h3>
-          <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
-            {description || "Tell shoppers what makes your store special."}
-          </p>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
-            {city && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                {city}
+        {steps.map((s) => {
+          const Icon = s.icon
+          const isCompleted = current > s.id
+          const isCurrent = current === s.id
+          return (
+            <div
+              key={s.id}
+              className={cn("flex flex-col items-center gap-1.5 transition-all", isCurrent && "scale-105")}
+            >
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center border-2 bg-background transition-all",
+                  isCompleted && "bg-primary border-primary text-primary-foreground",
+                  isCurrent && "border-primary text-primary shadow-md shadow-primary/20",
+                  !isCompleted && !isCurrent && "border-border text-muted-foreground",
+                )}
+              >
+                {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] md:text-xs font-medium text-center whitespace-nowrap",
+                  isCurrent ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {s.label}
               </span>
-            )}
-            {category && <span>{category}</span>}
-          </div>
-          <div className="flex items-center justify-between pt-3 border-t">
-            <div className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} className="w-3 h-3 text-muted-foreground/30" />
-              ))}
-              <span className="text-xs text-muted-foreground ml-1">New</span>
             </div>
-            <Button size="sm" variant="outline" className="bg-transparent text-xs h-7 pointer-events-none">
-              Visit
-            </Button>
-          </div>
-        </div>
-      </Card>
+          )
+        })}
+      </div>
     </div>
   )
 }

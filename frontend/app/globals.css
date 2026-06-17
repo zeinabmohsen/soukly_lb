@@ -240,6 +240,47 @@
   }
 }
 
+/* ─── Landing-page motion (souk theme) ────────────────────────────────────── */
+
+/* Infinite horizontal scroll for the category marquee. The track holds two
+   copies of the pills; translating by -50% loops seamlessly. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Slow gradient pan for headline text / CTA backgrounds. Pairs with a
+   200%-wide background so the colours drift like light over a souk. */
+@keyframes gradient-pan {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Gentle drift for the floating background graphics. */
+@keyframes float-drift {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-22px) rotate(6deg); }
+}
+
+/* Horizontal "writing" fill for the page-line bars. Pair with
+   transform-origin:left and a per-bar animation-delay. */
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Pen nib travelling left→right across a phrase as it is "written". Pairs with
+   the `reveal` clip-path keyframe at the same duration/timing so the nib stays
+   at the leading edge of the ink. The nib fades in at the start and out at the
+   end. A gentle bob makes the writing feel hand-made. */
+@keyframes write-pen {
+  0%   { left: 0%;   opacity: 0; transform: translateY(-46%) rotate(-8deg); }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(-58%) rotate(-8deg); }
+  90%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; transform: translateY(-46%) rotate(-8deg); }
+}
+
 @layer utilities {
   .glass {
     background: rgba(255, 255, 255, 0.05);
@@ -287,6 +328,48 @@
 
   .animate-fade-in-up {
     animation: fade-in-up 0.4s ease both;
+  }
+
+  .animate-marquee {
+    animation: marquee 40s linear infinite;
+  }
+  .marquee-pause:hover .animate-marquee {
+    animation-play-state: paused;
+  }
+
+  .animate-gradient-text {
+    background-size: 200% auto;
+    animation: gradient-pan 5s linear infinite;
+  }
+
+  .animate-float-drift {
+    animation: float-drift 7s ease-in-out infinite;
+  }
+
+  /* Scroll-reveal: hidden until .is-visible is toggled on by the Reveal
+     component's IntersectionObserver. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee,
+    .animate-float-drift,
+    .animate-gradient-text {
+      animation: none;
+    }
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 
   .shimmer-line {

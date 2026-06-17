@@ -255,7 +255,20 @@ async function approveStore(id, approved) {
     include: [{ model: User, as: "owner", attributes: ["id", "name", "email"] }],
   });
   if (!store) return null;
-  return store.update({ is_approved: approved });
+
+  await store.update({ is_approved: approved });
+
+  // Store approval is the single source of truth for a seller's status — keep
+  // the owner's seller_status in sync so the two never drift apart. Approving
+  // makes them a confirmed seller; revoking sends them back to the pending queue.
+  if (store.owner) {
+    await store.owner.update({
+      is_seller: approved,
+      seller_status: approved ? "approved" : "pending",
+    });
+  }
+
+  return store;
 }
 
 // ── Subscription ────────────────────────────────────────────────────────────

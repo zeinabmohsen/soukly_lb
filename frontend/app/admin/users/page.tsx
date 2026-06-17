@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
-import { Users, Search, Check, X, Loader2 } from "lucide-react"
+import { Users, Search, Loader2 } from "lucide-react"
 import {
-  useGetUsersQuery, useUpdateSellerStatusMutation, useResetUserPasswordMutation,
+  useGetUsersQuery, useResetUserPasswordMutation,
 } from "@/store/api/userApi"
 import { useToast } from "@/hooks/use-toast"
 import { EmptyHint, initials } from "@/components/admin/admin-ui"
@@ -21,7 +21,6 @@ export default function AdminUsersPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   const { data, isLoading } = useGetUsersQuery(undefined, { skip: !isAdmin })
-  const [updateSellerStatus, { isLoading: isUpdating }] = useUpdateSellerStatusMutation()
   const [resetPassword, { isLoading: isResetting }] = useResetUserPasswordMutation()
 
   const users = useMemo(() => data?.data ?? [], [data])
@@ -42,18 +41,6 @@ export default function AdminUsersPage() {
     try {
       await resetPassword({ id: userId, password: pwd }).unwrap()
       toast({ title: "Password reset", description: `${userName} can now sign in with the new password.` })
-    } catch {
-      toast({ title: "Action failed", variant: "destructive" })
-    } finally {
-      setProcessingId(null)
-    }
-  }
-
-  const handleSellerStatus = async (userId: string, status: "approved" | "rejected") => {
-    setProcessingId(userId)
-    try {
-      await updateSellerStatus({ id: userId, status }).unwrap()
-      toast({ title: `Seller ${status}` })
     } catch {
       toast({ title: "Action failed", variant: "destructive" })
     } finally {
@@ -94,14 +81,7 @@ export default function AdminUsersPage() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                     {user.is_admin && <Badge variant="destructive" className="text-xs">Admin</Badge>}
-                    {user.is_seller && (
-                      <Badge
-                        variant={user.seller_status === "approved" ? "default" : user.seller_status === "pending" ? "secondary" : "outline"}
-                        className="text-xs"
-                      >
-                        {user.seller_status}
-                      </Badge>
-                    )}
+                    {user.is_seller && <Badge variant="outline" className="text-xs">Seller</Badge>}
                     <Button
                       size="sm" variant="outline" className="gap-1 text-xs h-7 bg-transparent"
                       onClick={() => handleResetPassword(user.id, user.name)}
@@ -110,25 +90,6 @@ export default function AdminUsersPage() {
                       {processingId === user.id && isResetting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                       Reset password
                     </Button>
-                    {user.is_seller && user.seller_status === "pending" && (
-                      <>
-                        <Button
-                          size="sm" className="gap-1 bg-green-600 hover:bg-green-700 text-xs h-7"
-                          onClick={() => handleSellerStatus(user.id, "approved")}
-                          disabled={processingId === user.id || isUpdating}
-                        >
-                          {processingId === user.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm" variant="destructive" className="gap-1 text-xs h-7"
-                          onClick={() => handleSellerStatus(user.id, "rejected")}
-                          disabled={processingId === user.id || isUpdating}
-                        >
-                          <X className="w-3 h-3" /> Reject
-                        </Button>
-                      </>
-                    )}
                   </div>
                 </div>
               ))}

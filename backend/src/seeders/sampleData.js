@@ -1,5 +1,3 @@
-// Idempotent seeder for demo accounts + a sample store with products.
-// Safe to re-run: looks up by email/slug and skips re-creation.
 
 const USERS = [
   {

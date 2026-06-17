@@ -3,14 +3,37 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Pencil, ArrowRight } from "lucide-react"
+import { Pencil, ArrowRight, ShieldCheck } from "lucide-react"
+import { useGetStoresQuery } from "@/store/api/storeApi"
+import { TRIAL_DAYS } from "@/lib/plans"
 
-const businessIdeas = ["a bakery", "a boutique", "a café", "a jewelry shop", "an art studio", "a bookstore"]
+const businessIdeas = [
+  "a boutique",
+  "a bakery",
+  "a candle shop",
+  "a skincare brand",
+  "a jewelry line",
+  "a craft store",
+  "an art shop",
+  "a bookstore",
+]
 
 export default function Hero3TypewriterDreams() {
   const [currentIdea, setCurrentIdea] = useState(0)
   const [displayText, setDisplayText] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Live store count for the social-proof strip — one cheap call, just the total.
+  const { data: storesPage } = useGetStoresQuery({ limit: 1 })
+  const totalStores = storesPage?.total ?? 0
+
+  // Honest, verifiable stats. The store count only appears once we actually
+  // have stores, so the strip never shows a hollow "0+".
+  const stats = [
+    ...(totalStores > 0 ? [{ value: `${totalStores}+`, label: "Stores live" }] : []),
+    { value: `${TRIAL_DAYS} days`, label: "Free trial" },
+    { value: "5 min", label: "Setup" },
+  ]
 
   useEffect(() => {
     const idea = businessIdeas[currentIdea]
@@ -38,7 +61,14 @@ export default function Hero3TypewriterDreams() {
       {/* Subtle paper texture */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')]" />
 
-      <div className="container relative mx-auto px-4 py-20 md:py-32">
+      {/* Animated gradient orbs — drifting "market lights" */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-primary/20 blur-3xl animate-float-drift" />
+        <div className="absolute top-1/3 -right-32 w-[28rem] h-[28rem] rounded-full bg-accent/20 blur-3xl animate-float-drift" style={{ animationDelay: "1.5s" }} />
+        <div className="absolute -bottom-32 left-1/4 w-80 h-80 rounded-full bg-primary/10 blur-3xl animate-float-drift" style={{ animationDelay: "3s" }} />
+      </div>
+
+      <div className="container relative z-10 mx-auto px-4 py-20 md:py-32">
         <div className="max-w-5xl mx-auto text-center space-y-12">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary backdrop-blur-sm">
             <Pencil className="h-4 w-4" />
@@ -51,7 +81,7 @@ export default function Hero3TypewriterDreams() {
             </h1>
 
             <div className="relative inline-block">
-              <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent min-h-[1.2em] inline-flex items-center">
+              <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-gradient-text min-h-[1.2em] inline-flex items-center">
                 {displayText}
                 <span className="inline-block w-1 h-[0.9em] bg-primary ml-2 animate-blink" />
               </h2>
@@ -66,8 +96,7 @@ export default function Hero3TypewriterDreams() {
           </div>
 
           <p className="text-xl text-muted-foreground text-pretty leading-relaxed max-w-2xl mx-auto">
-            Every great business starts with a dream and a blank page. Soukly is your pen, turning ideas into thriving
-            online stores—try free for 30 days, no tech skills needed.
+            Launch your own online store on Lebanon's marketplace — try free for 30 days, no tech skills needed.
           </p>
 
           <div className="flex flex-col gap-4 sm:flex-row items-center justify-center pt-8">
@@ -84,22 +113,24 @@ export default function Hero3TypewriterDreams() {
             </Link>
           </div>
 
-          {/* Floating quotes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16">
-            {[
-              { quote: "Started with just an idea", author: "Sarah M., Jewelry Designer" },
-              { quote: "Live in 10 minutes", author: "Ahmad K., Coffee Roaster" },
-              { quote: "Customers from all Lebanon", author: "Leila N., Handmade Crafts" },
-            ].map((item, i) => (
+          {/* Trust line under the CTAs */}
+          <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            No credit card to apply · Cancel anytime
+          </p>
+
+          {/* Live social-proof stats */}
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 pt-16">
+            {stats.map((stat, i) => (
               <div
-                key={i}
-                className="p-6 rounded-xl bg-card border border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg"
-                style={{
-                  animation: `slide-up 0.6s ease-out ${i * 0.2}s both`,
-                }}
+                key={stat.label}
+                className="text-center"
+                style={{ animation: `slide-up 0.6s ease-out ${i * 0.1}s both` }}
               >
-                <p className="text-lg font-medium text-foreground mb-2">"{item.quote}"</p>
-                <p className="text-sm text-muted-foreground">— {item.author}</p>
+                <p className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  {stat.value}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
               </div>
             ))}
           </div>

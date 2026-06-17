@@ -32,12 +32,12 @@ export default function HowItWorksSection() {
     <section id="how-it-works" className="py-20 md:py-32 bg-gradient-to-b from-background to-muted/30">
       <div className="container mx-auto px-4">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 rounded-full bg-accent/10 px-4 py-2 text-sm font-medium text-accent mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary mb-6">
             <Rocket className="h-4 w-4" />
             <span>Simple Process</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-bold text-balance mb-6">
-            From Idea to <span className="text-accent">Live Store</span> in 4 Steps
+            From Idea to <span className="text-primary">Live Store</span> in 4 Steps
           </h2>
           <p className="text-xl text-muted-foreground text-pretty">
             No complexity, no confusion. Just a straightforward path to your online success.

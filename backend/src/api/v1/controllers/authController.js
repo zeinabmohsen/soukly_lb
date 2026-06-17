@@ -8,7 +8,11 @@ const { createUser: createUserService } = require("../services/userService");
 const { jwtSecret } = require("../../../config");
 const { sendEmail } = require("../../../utils/email");
 
-const ACCESS_EXPIRES_IN = "15m";
+// Long-lived access token, beachbeds-style: the user stays logged in for a long
+// stretch without needing a silent refresh on every visit. The rotating refresh
+// cookie (below) is kept as a safety net to renew/rotate the session. Shorten
+// this back to "15m" if you ever want to return to short-lived access tokens.
+const ACCESS_EXPIRES_IN = "30d";
 const REFRESH_DAYS = 365;
 // How long the just-rotated-away refresh token stays acceptable. Covers the
 // brief window where a second browser tab (or a retried request) fires a
@@ -119,6 +123,15 @@ function getRefreshTokenFromRequest(req) {
   return req.cookies?.[REFRESH_COOKIE_NAME] || null;
 }
 
+// Collapse the boolean flags into a single role string, mirroring beachbeds'
+// `user.role` surface (where roles were user / beach / beach_officer / admin).
+// Soukly's equivalents: admin > approved seller > plain user.
+function deriveRole(user) {
+  if (user.is_admin) return "admin";
+  if (user.is_seller && user.seller_status === "approved") return "seller";
+  return "user";
+}
+
 function formatUser(user) {
   return {
     id: user.id,
@@ -126,6 +139,7 @@ function formatUser(user) {
     email: user.email,
     phone: user.phone,
     avatar_url: user.avatar_url,
+    role: deriveRole(user),
     is_seller: user.is_seller,
     seller_status: user.seller_status,
     is_admin: user.is_admin,
@@ -133,16 +147,26 @@ function formatUser(user) {
   };
 }
 
+// beachbeds-style response envelope: every payload is wrapped as
+// { success, data, message } so the client always reads result.data.
+function sendResponse(res, data, message = "", code = 200) {
+  return res.status(code).json({ success: true, data, message });
+}
+
+function sendError(res, message, code = 400) {
+  return res.status(code).json({ success: false, message });
+}
+
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
 
   if (!name || !email || !password) {
-    return res.status(400).json({ message: "name, email, and password are required" });
+    return sendError(res, "name, email, and password are required", 400);
   }
 
   const existing = await User.findOne({ where: { email } });
   if (existing) {
-    return res.status(409).json({ message: "Email already in use" });
+    return sendError(res, "Email already in use", 409);
   }
 
   const user = await createUserService({ name, email, password, phone });
@@ -150,55 +174,49 @@ const register = asyncHandler(async (req, res) => {
   const session = await createSession(user.id);
   setRefreshCookie(req, res, session.refreshToken, session.expiresAt);
 
-  res.status(201).json({
-    user: formatUser(user),
-    access_token: accessToken,
-    access_expires_in: ACCESS_EXPIRES_IN,
-  });
+  return sendResponse(res, { token: accessToken, user: formatUser(user) }, "Account created", 201);
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  // Login by email OR phone, mirroring beachbeds' logIn(): whichever identifier
+  // the client supplies is used to look the account up.
+  const { email, phone, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: "email and password are required" });
+  if ((!email && !phone) || !password) {
+    return sendError(res, "email or phone, and password are required", 400);
   }
 
-  const user = await User.findOne({ where: { email } });
+  const user = await User.findOne({ where: email ? { email } : { phone } });
   if (!user) {
-    return res.status(401).json({ message: "Invalid credentials" });
+    return sendError(res, "Invalid credentials", 401);
   }
 
   const isMatch = await user.validatePassword(password);
   if (!isMatch) {
-    return res.status(401).json({ message: "Invalid credentials" });
+    return sendError(res, "Invalid credentials", 401);
   }
 
   const accessToken = signAccessToken(user);
   const session = await createSession(user.id);
   setRefreshCookie(req, res, session.refreshToken, session.expiresAt);
 
-  res.status(200).json({
-    user: formatUser(user),
-    access_token: accessToken,
-    access_expires_in: ACCESS_EXPIRES_IN,
-  });
+  return sendResponse(res, { token: accessToken, user: formatUser(user) }, "Logged in");
 });
 
 const refreshToken = asyncHandler(async (req, res) => {
   const parsed = parseRefreshToken(getRefreshTokenFromRequest(req));
   if (!parsed) {
-    return res.status(400).json({ message: "Invalid refresh token" });
+    return sendError(res, "Invalid refresh token", 400);
   }
 
   const session = await Session.findByPk(parsed.sessionId);
   if (!session) {
-    return res.status(401).json({ message: "Invalid refresh token" });
+    return sendError(res, "Invalid refresh token", 401);
   }
 
   if (new Date(session.expires_at) < new Date()) {
     await session.destroy();
-    return res.status(401).json({ message: "Refresh token expired" });
+    return sendError(res, "Refresh token expired", 401);
   }
 
   const matches = await bcrypt.compare(parsed.rawToken, session.refresh_token_hash);
@@ -218,14 +236,14 @@ const refreshToken = asyncHandler(async (req, res) => {
     if (!prevMatches) {
       await Session.destroy({ where: { user_id: session.user_id } });
       clearRefreshCookie(req, res);
-      return res.status(401).json({ message: "Invalid refresh token" });
+      return sendError(res, "Invalid refresh token", 401);
     }
   }
 
   const user = await User.findByPk(session.user_id);
   if (!user) {
     await session.destroy();
-    return res.status(401).json({ message: "User not found" });
+    return sendError(res, "User not found", 401);
   }
 
   const accessToken = signAccessToken(user);
@@ -233,11 +251,7 @@ const refreshToken = asyncHandler(async (req, res) => {
   const rotated = await rotateSession(session, rawRotated);
   setRefreshCookie(req, res, rotated.refreshToken, rotated.expiresAt);
 
-  res.status(200).json({
-    user: formatUser(user),
-    access_token: accessToken,
-    access_expires_in: ACCESS_EXPIRES_IN,
-  });
+  return sendResponse(res, { token: accessToken, user: formatUser(user) }, "Token refreshed");
 });
 
 const logout = asyncHandler(async (req, res) => {
@@ -247,15 +261,15 @@ const logout = asyncHandler(async (req, res) => {
     if (session) await session.destroy();
   }
   clearRefreshCookie(req, res);
-  res.status(200).json({ message: "Logged out" });
+  return sendResponse(res, null, "Logged out");
 });
 
 const getMe = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.user.id);
   if (!user) {
-    return res.status(404).json({ message: "User not found" });
+    return sendError(res, "User not found", 404);
   }
-  res.status(200).json({ user: formatUser(user) });
+  return sendResponse(res, { user: formatUser(user) }, "OK");
 });
 
 // ── Password reset ───────────────────────────────────────────────────────────
@@ -284,13 +298,12 @@ function buildResetUrl(req, token) {
 const forgotPassword = asyncHandler(async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
   if (!email) {
-    return res.status(400).json({ message: "email is required" });
+    return sendError(res, "email is required", 400);
   }
 
   // Always respond 200 — never reveal whether the email exists.
-  const respond = () => res.status(200).json({
-    message: "If an account exists for that email, a reset link has been sent.",
-  });
+  const respond = () =>
+    sendResponse(res, null, "If an account exists for that email, a reset link has been sent.");
 
   const user = await User.findOne({ where: { email } });
   if (!user) return respond();
@@ -344,15 +357,15 @@ const resetPassword = asyncHandler(async (req, res) => {
   const { token, password } = req.body || {};
   const parsed = parseResetToken(token);
   if (!parsed) {
-    return res.status(400).json({ message: "Invalid or malformed reset token" });
+    return sendError(res, "Invalid or malformed reset token", 400);
   }
   if (!password || typeof password !== "string" || password.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters" });
+    return sendError(res, "Password must be at least 6 characters", 400);
   }
 
   const row = await PasswordReset.findByPk(parsed.id);
   // Same generic error for any failure so attackers can't probe which step failed
-  const reject = () => res.status(400).json({ message: "This reset link is invalid or has expired" });
+  const reject = () => sendError(res, "This reset link is invalid or has expired", 400);
   if (!row || row.used_at || new Date(row.expires_at) < new Date()) return reject();
 
   const matches = await bcrypt.compare(parsed.rawToken, row.token_hash);
@@ -369,7 +382,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   // Force logout everywhere — every existing session is now stale credentials.
   await Session.destroy({ where: { user_id: user.id } });
 
-  res.status(200).json({ message: "Password updated. Please sign in with your new password." });
+  return sendResponse(res, null, "Password updated. Please sign in with your new password.");
 });
 
 module.exports = { register, login, refreshToken, logout, getMe, forgotPassword, resetPassword };

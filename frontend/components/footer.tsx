@@ -119,8 +119,8 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="py-8 border-t border-border">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground text-center md:text-left">
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-sm text-muted-foreground text-center">
               © {new Date().getFullYear()} Soukly. All rights reserved. Made with{" "}
               <span className="text-red-500">♥</span> in Lebanon
             </p>

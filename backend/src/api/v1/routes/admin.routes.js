@@ -1,5 +1,5 @@
 const { Router } = require("express");
-const { getAdminStores, getAdminStoreById, getAdminOrders, getAdminBilling } = require("../controllers/adminController");
+const { getAdminStores, getAdminStoreById, getAdminOrders, getAdminBilling, updateAdminOrderStatus, updateAdminPayment } = require("../controllers/adminController");
 const { authorize, ADMIN } = require("../middlewares/checkAuth");
 
 const router = Router();
@@ -10,6 +10,8 @@ router.use(authorize(ADMIN));
 router.get("/stores",      getAdminStores);
 router.get("/stores/:id",  getAdminStoreById);
 router.get("/orders",      getAdminOrders);
+router.patch("/orders/:id/status", updateAdminOrderStatus);
 router.get("/billing",     getAdminBilling);
+router.patch("/billing/:id", updateAdminPayment);
 
 module.exports = router;

@@ -10,10 +10,13 @@ const {
   applyProductColorsColumn,
   applyProductCustomizationsColumn,
   applyPasswordResetsTable,
+  applyEmailVerificationsTable,
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
   applySubscriptionPaymentsTable,
   applySessionRotationGraceColumns,
+  applyPromotionsTable,
+  applyOrderDiscountColumns,
 } = require("./migrations");
 const { seedSubscriptionPayments } = require("./subscriptionPayments");
 
@@ -32,10 +35,13 @@ async function runSeeds() {
   await applyProductColorsColumn(sequelize);
   await applyProductCustomizationsColumn(sequelize);
   await applyPasswordResetsTable(sequelize);
+  await applyEmailVerificationsTable(sequelize);
   await applyStoreSocialColumns(sequelize);
   await applyUserPasswordVersionColumn(sequelize);
   await applySubscriptionPaymentsTable(sequelize);
   await applySessionRotationGraceColumns(sequelize);
+  await applyPromotionsTable(sequelize);
+  await applyOrderDiscountColumns(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

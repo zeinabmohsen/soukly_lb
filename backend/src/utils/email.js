@@ -35,19 +35,22 @@ function getTransport() {
 async function sendEmail({ to, subject, text, html }) {
   const transport = getTransport();
   const fromAddress = process.env.SMTP_FROM || "Soukly <no-reply@soukly.app>";
+  // Send from no-reply but route replies to the monitored support inbox.
+  const replyTo = process.env.SMTP_REPLY_TO || undefined;
 
   if (!transport) {
     // Dev fallback — print to stdout so the developer can act on it.
     console.log("\n────────── [email] ──────────");
     console.log(`To:      ${to}`);
     console.log(`From:    ${fromAddress}`);
+    if (replyTo) console.log(`Reply-To: ${replyTo}`);
     console.log(`Subject: ${subject}`);
     console.log("\n" + (text || html || "(no body)"));
     console.log("──────────────────────────────\n");
     return { delivered: false, transport: "console" };
   }
 
-  await transport.sendMail({ from: fromAddress, to, subject, text, html });
+  await transport.sendMail({ from: fromAddress, to, replyTo, subject, text, html });
   return { delivered: true, transport: "smtp" };
 }
 
@@ -108,4 +111,28 @@ async function sendSellerDecisionEmail({ to, name, storeName, approved }) {
   });
 }
 
-module.exports = { sendEmail, sendSellerDecisionEmail };
+// Email-verification message — sent on signup (and on resend). Best-effort:
+// callers wrap this in try/catch so a mail failure never blocks registration.
+async function sendVerificationEmail({ to, name, verifyUrl, ttlHours }) {
+  const who = name || "there";
+  return sendEmail({
+    to,
+    subject: "Confirm your Soukly email",
+    text:
+      `Hi ${who},\n\n` +
+      `Welcome to Soukly! Please confirm your email address by opening the link below` +
+      (ttlHours ? ` within ${ttlHours} hours` : "") +
+      `:\n\n${verifyUrl}\n\n` +
+      `If you didn't create a Soukly account, you can safely ignore this email.`,
+    html: wrap(
+      "Confirm your email",
+      `<p>Hi ${who},</p>
+       <p>Welcome to Soukly! Please confirm your email address to finish setting up your account.</p>
+       <p><a href="${verifyUrl}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Confirm email</a></p>
+       ${ttlHours ? `<p style="font-size:13px;color:#666">This link expires in ${ttlHours} hours.</p>` : ""}
+       <p style="font-size:13px;color:#666">If you didn't create a Soukly account, you can safely ignore this email.</p>`
+    ),
+  });
+}
+
+module.exports = { sendEmail, sendSellerDecisionEmail, sendVerificationEmail };

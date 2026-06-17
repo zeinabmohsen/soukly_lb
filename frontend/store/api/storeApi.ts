@@ -275,6 +275,12 @@ export const storeApi = baseApi.injectEndpoints({
     uploadStoreImage: builder.mutation<{ url: string }, FormData>({
       query: (formData) => ({ url: "/stores/me/store/upload-image", method: "POST", body: formData }),
     }),
+    // Admin: update a subscription payment's status (mark paid / failed /
+    // refunded / pending) while Whish billing is pending.
+    updateAdminPayment: builder.mutation<AdminPayment, { id: string; status: PaymentStatus }>({
+      query: ({ id, status }) => ({ url: `/admin/billing/${id}`, method: "PATCH", body: { status } }),
+      invalidatesTags: ["Billing"],
+    }),
     // Seller: billing history (subscription charges) for own store
     getMyPayments: builder.query<BillingHistory, void>({
       query: () => "/stores/me/subscription/payments",
@@ -308,5 +314,6 @@ export const {
   useStartMyTrialMutation,
   useChangeMyPlanMutation,
   useUploadStoreImageMutation,
+  useUpdateAdminPaymentMutation,
   useGetMyPaymentsQuery,
 } = storeApi

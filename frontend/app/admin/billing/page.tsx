@@ -1,21 +1,57 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/useAuth"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Wallet, CreditCard, Clock, Receipt } from "lucide-react"
-import { useGetAdminBillingQuery } from "@/store/api/storeApi"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Wallet, CreditCard, Clock, Receipt, MoreVertical } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import {
+  useGetAdminBillingQuery,
+  useUpdateAdminPaymentMutation,
+  type PaymentStatus,
+} from "@/store/api/storeApi"
 import { PAYMENT_STATUS_CFG, EmptyHint } from "@/components/admin/admin-ui"
+
+// Status transitions admin can apply per current payment status.
+const PAYMENT_ACTIONS: Record<PaymentStatus, { label: string; next: PaymentStatus }[]> = {
+  paid:     [{ label: "Mark refunded", next: "refunded" }, { label: "Mark pending", next: "pending" }],
+  pending:  [{ label: "Mark paid", next: "paid" }, { label: "Mark failed", next: "failed" }],
+  failed:   [{ label: "Mark paid", next: "paid" }, { label: "Mark pending", next: "pending" }],
+  refunded: [{ label: "Mark paid", next: "paid" }],
+}
 
 export default function AdminBillingPage() {
   const { isAdmin } = useAuth()
+  const { toast } = useToast()
   const { data, isLoading } = useGetAdminBillingQuery({ limit: 100 }, { skip: !isAdmin })
+  const [updatePayment, { isLoading: isUpdating }] = useUpdateAdminPaymentMutation()
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
   const payments = useMemo(() => data?.data ?? [], [data])
   const summary = data?.summary
+
+  const handleStatus = async (id: string, status: PaymentStatus) => {
+    setProcessingId(id)
+    try {
+      await updatePayment({ id, status }).unwrap()
+      toast({ title: "Payment updated", description: `Marked ${PAYMENT_STATUS_CFG[status]?.label ?? status}` })
+    } catch (e) {
+      const msg = (e as { data?: { message?: string } })?.data?.message
+      toast({ title: "Update failed", description: msg, variant: "destructive" })
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -107,6 +143,26 @@ export default function AdminBillingPage() {
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="font-semibold text-sm">${Number(p.amount).toFixed(2)}</span>
                       <Badge variant="outline" className={cfg?.cls ?? ""}>{cfg?.label ?? p.status}</Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={isUpdating && processingId === p.id}
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                            <span className="sr-only">Payment actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {(PAYMENT_ACTIONS[p.status] ?? []).map((a) => (
+                            <DropdownMenuItem key={a.next} onClick={() => handleStatus(p.id, a.next)}>
+                              {a.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 )

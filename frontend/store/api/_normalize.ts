@@ -35,7 +35,7 @@ export function numerifyPaginated<T extends { data?: unknown[] }>(
 // Numeric fields per resource
 export const STORE_NUM_FIELDS = ["rating"]
 export const PRODUCT_NUM_FIELDS = ["price", "compare_at_price", "rating"]
-export const ORDER_NUM_FIELDS = ["total_amount"]
+export const ORDER_NUM_FIELDS = ["total_amount", "subtotal", "shipping_fee", "discount_amount"]
 export const ORDER_ITEM_NUM_FIELDS = ["unit_price"]
 export const REVIEW_NUM_FIELDS = ["rating"]
 

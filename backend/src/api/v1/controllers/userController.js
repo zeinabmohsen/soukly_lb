@@ -10,7 +10,7 @@ const {
 const { buildPaginationParams, buildPaginationMeta } = require("../../../utils/pagination");
 const asyncHandler = require("../../../utils/asyncHandler");
 const { sendSellerDecisionEmail } = require("../../../utils/email");
-const { Store } = require("../models");
+const { Store, Session } = require("../models");
 
 const getAllUsers = asyncHandler(async (req, res) => {
   const { limit, offset } = buildPaginationParams(req.query);
@@ -99,6 +99,12 @@ const resetUserPassword = asyncHandler(async (req, res) => {
   }
 
   await user.update({ password });
+
+  // Force-logout everywhere: the password_version bump (User.beforeUpdate)
+  // invalidates existing access tokens, but the refresh sessions would still
+  // mint fresh ones — so destroy them too. The user must sign in again.
+  await Session.destroy({ where: { user_id: user.id } });
+
   res.status(200).json({ message: "Password reset" });
 });
 

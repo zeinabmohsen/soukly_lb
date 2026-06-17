@@ -214,6 +214,36 @@ async function fetchPlatformBilling({ limit, offset, status }) {
   };
 }
 
+// ── Admin: manually update a subscription payment's status ───────────────────
+// Used while Whish billing is pending — admin records a manual payment, marks a
+// charge failed, or refunds one by hand. paid_at is kept consistent: marking
+// paid stamps it (if unset); pending/failed clears it; a refund keeps the
+// original paid_at so the record still shows when money was taken.
+const ALLOWED_PAYMENT_STATUSES = new Set(["paid", "pending", "failed", "refunded"]);
+
+async function adminUpdatePaymentStatus(paymentId, status) {
+  if (!ALLOWED_PAYMENT_STATUSES.has(status)) {
+    const err = new Error(`Invalid status. Must be one of: ${[...ALLOWED_PAYMENT_STATUSES].join(", ")}`);
+    err.status = 400;
+    throw err;
+  }
+
+  const payment = await SubscriptionPayment.findByPk(paymentId, {
+    include: [{ model: Store, as: "store", attributes: ["id", "name", "slug"] }],
+  });
+  if (!payment) return null;
+
+  const updates = { status };
+  if (status === "paid") {
+    if (!payment.paid_at) updates.paid_at = new Date();
+  } else if (status === "pending" || status === "failed") {
+    updates.paid_at = null;
+  }
+  // refunded: leave paid_at as-is.
+
+  return payment.update(updates);
+}
+
 // Keep in sync with frontend lib/plans.ts — both must list the same plan ids.
 const ALLOWED_PLAN_IDS = new Set(["starter", "pro", "premium"]);
 
@@ -391,6 +421,7 @@ module.exports = {
   fetchAllStoresAdmin,
   fetchStoreByIdAdmin,
   fetchPlatformBilling,
+  adminUpdatePaymentStatus,
   createStore,
   updateStore,
   approveStore,

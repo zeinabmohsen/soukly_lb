@@ -56,6 +56,10 @@ export interface Order {
   }
   payment_method: "cash_on_delivery" | "card"
   total_amount: number
+  subtotal?: number
+  shipping_fee?: number
+  discount_amount?: number
+  coupon_code?: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -75,6 +79,7 @@ export interface CheckoutPayload {
   }
   payment_method: "cash_on_delivery" | "card"
   notes?: string
+  coupon_code?: string
 }
 
 interface PaginatedOrders {
@@ -139,6 +144,12 @@ export const orderApi = baseApi.injectEndpoints({
       transformResponse: normalizeOrder,
       invalidatesTags: (_r, _e, { id }) => [{ type: "Order", id: id as string }, "Order"],
     }),
+    // Admin: override any order's status (any store, any transition)
+    updateAdminOrderStatus: builder.mutation<Order, { id: string; status: string }>({
+      query: ({ id, status }) => ({ url: `/admin/orders/${id}/status`, method: "PATCH", body: { status } }),
+      transformResponse: normalizeOrder,
+      invalidatesTags: (_r, _e, { id }) => [{ type: "Order", id: id as string }, "Order"],
+    }),
     cancelOrder: builder.mutation<Order, string>({
       query: (id) => ({ url: `/orders/${id}/cancel`, method: "PATCH" }),
       transformResponse: normalizeOrder,
@@ -154,5 +165,6 @@ export const {
   useGetStoreOrdersQuery,
   useGetAdminOrdersQuery,
   useUpdateOrderStatusMutation,
+  useUpdateAdminOrderStatusMutation,
   useCancelOrderMutation,
 } = orderApi

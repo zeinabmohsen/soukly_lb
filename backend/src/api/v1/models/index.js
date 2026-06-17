@@ -1,6 +1,7 @@
 const User           = require("./User");
 const Session        = require("./Session");
 const PasswordReset  = require("./PasswordReset");
+const EmailVerification = require("./EmailVerification");
 const GlobalCategory = require("./GlobalCategory");
 const Store         = require("./Store");
 const StoreCategory = require("./StoreCategory");
@@ -12,6 +13,7 @@ const StoreFollow   = require("./StoreFollow");
 const Review        = require("./Review");
 const Address       = require("./Address");
 const SubscriptionPayment = require("./SubscriptionPayment");
+const Promotion     = require("./Promotion");
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 User.hasMany(Session,   { foreignKey: "user_id", onDelete: "CASCADE" });
@@ -19,6 +21,9 @@ Session.belongsTo(User, { foreignKey: "user_id" });
 
 User.hasMany(PasswordReset,   { foreignKey: "user_id", onDelete: "CASCADE" });
 PasswordReset.belongsTo(User, { foreignKey: "user_id" });
+
+User.hasMany(EmailVerification,   { foreignKey: "user_id", onDelete: "CASCADE" });
+EmailVerification.belongsTo(User, { foreignKey: "user_id" });
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 User.hasOne(Store,    { foreignKey: "owner_id", onDelete: "CASCADE" });
@@ -85,8 +90,12 @@ Address.belongsTo(User,  { foreignKey: "user_id" });
 Store.hasMany(SubscriptionPayment,   { as: "payments", foreignKey: "store_id", onDelete: "CASCADE" });
 SubscriptionPayment.belongsTo(Store, { as: "store", foreignKey: "store_id" });
 
+// ── Promotions (discount codes) ─────────────────────────────────────────────────
+Store.hasMany(Promotion,   { as: "promotions", foreignKey: "store_id", onDelete: "CASCADE" });
+Promotion.belongsTo(Store, { as: "store", foreignKey: "store_id" });
+
 module.exports = {
-  User, Session, PasswordReset, GlobalCategory,
+  User, Session, PasswordReset, EmailVerification, GlobalCategory,
   Store, StoreCategory,
   Product,
   Order, OrderItem,
@@ -94,4 +103,5 @@ module.exports = {
   Review,
   Address,
   SubscriptionPayment,
+  Promotion,
 };

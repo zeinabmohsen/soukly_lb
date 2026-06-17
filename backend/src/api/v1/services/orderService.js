@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
 const sequelize = require("../../../config/database");
 const { Order, OrderItem, Product, Store, User } = require("../models");
+const { findUsablePromotion, redeemPromotion } = require("./promotionService");
 
 const SHIPPING_FEE = 5.00;
 
@@ -30,7 +31,7 @@ const SELLER_TRANSITIONS = {
 };
 
 // ── Create: one order per store in a single transaction ───────────────────────
-async function createOrders(buyerId, { items, shipping_address, payment_method, notes }) {
+async function createOrders(buyerId, { items, shipping_address, payment_method, notes, coupon_code }) {
   if (!items || items.length === 0) {
     const err = new Error("Cart is empty");
     err.status = 400;
@@ -87,6 +88,21 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
     byStore.get(storeId).push({ item, product });
   }
 
+  // A coupon belongs to one store, so it only discounts that store's sub-order.
+  // Resolve it up front (throws if the code is invalid/expired) and make sure
+  // the buyer actually has an item from that store in the cart.
+  let couponStoreId = null;
+  if (coupon_code) {
+    const promo = await findUsablePromotion(coupon_code);
+    couponStoreId = promo.store.id;
+    if (!byStore.has(couponStoreId)) {
+      const err = new Error(`Code "${promo.code}" is for ${promo.store.name}. Add an item from that store to use it.`);
+      err.status = 422;
+      err.code = "INVALID_COUPON";
+      throw err;
+    }
+  }
+
   const createdOrders = await sequelize.transaction(async (t) => {
     const orders = [];
 
@@ -95,7 +111,18 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
         (sum, { item, product }) => sum + parseFloat(product.price) * item.quantity,
         0
       );
-      const total = subtotal + SHIPPING_FEE;
+
+      // Apply the coupon to its own store's order only. redeemPromotion
+      // atomically reserves a redemption under the usage limit — if it throws,
+      // the whole transaction rolls back (no order, no redemption spent).
+      let discount = 0;
+      let appliedCode = null;
+      if (couponStoreId && storeId === couponStoreId) {
+        const result = await redeemPromotion({ storeId, code: coupon_code, subtotal, transaction: t });
+        discount = result.discount;
+        appliedCode = result.code;
+      }
+      const total = Math.max(0, subtotal - discount) + SHIPPING_FEE;
 
       const order = await Order.create(
         {
@@ -103,6 +130,8 @@ async function createOrders(buyerId, { items, shipping_address, payment_method, 
           store_id: storeId,
           status: "pending",
           subtotal: subtotal.toFixed(2),
+          discount_amount: discount.toFixed(2),
+          coupon_code: appliedCode,
           shipping_fee: SHIPPING_FEE,
           total: total.toFixed(2),
           shipping_address,
@@ -252,6 +281,70 @@ async function updateOrderStatus(id, storeId, newStatus) {
   return order.update({ status: newStatus });
 }
 
+// ── Admin: override an order's status (any store, any transition) ────────────
+// Unlike the seller flow (which only allows forward transitions), an admin can
+// set any valid status to resolve disputes. Inventory is kept consistent:
+// moving INTO cancelled restores stock; moving back OUT of cancelled
+// re-reserves it (guarded so reinstating an order can never oversell).
+const VALID_ADMIN_ORDER_STATUSES = [
+  "pending", "confirmed", "processing", "shipped", "delivered", "cancelled",
+];
+
+async function adminUpdateOrderStatus(id, newStatus) {
+  if (!VALID_ADMIN_ORDER_STATUSES.includes(newStatus)) {
+    const err = new Error(`Invalid status "${newStatus}"`);
+    err.status = 400;
+    throw err;
+  }
+
+  const order = await Order.findOne({
+    where: { id },
+    include: [{ model: OrderItem, as: "items" }],
+  });
+  if (!order) return null;
+
+  const prev = order.status;
+  if (prev === newStatus) {
+    return order.reload({ include: ORDER_INCLUDE });
+  }
+
+  const enteringCancelled = newStatus === "cancelled" && prev !== "cancelled";
+  const leavingCancelled = prev === "cancelled" && newStatus !== "cancelled";
+
+  await sequelize.transaction(async (t) => {
+    if (enteringCancelled) {
+      // Return reserved units to inventory and unwind the sale count.
+      for (const item of order.items) {
+        if (!item.product_id) continue;
+        await Product.increment({ stock: item.quantity }, { where: { id: item.product_id }, transaction: t });
+        await Product.decrement({ sales_count: item.quantity }, { where: { id: item.product_id }, transaction: t });
+      }
+    } else if (leavingCancelled) {
+      // Re-reserve inventory. Atomic conditional decrement per line so we never
+      // push stock negative when reinstating a previously cancelled order.
+      for (const item of order.items) {
+        if (!item.product_id) continue;
+        const qty = Number(item.quantity);
+        const [affected] = await Product.update(
+          {
+            stock:       sequelize.literal(`stock - ${qty}`),
+            sales_count: sequelize.literal(`sales_count + ${qty}`),
+          },
+          { where: { id: item.product_id, stock: { [Op.gte]: qty } }, transaction: t }
+        );
+        if (affected === 0) {
+          const err = new Error("Cannot reinstate this order — a product no longer has enough stock to re-reserve.");
+          err.status = 422;
+          throw err;
+        }
+      }
+    }
+    await order.update({ status: newStatus }, { transaction: t });
+  });
+
+  return order.reload({ include: ORDER_INCLUDE });
+}
+
 // ── Buyer: cancel own pending order ─────────────────────────────────────────
 async function cancelOrder(id, buyerId) {
   const order = await Order.findOne({
@@ -294,5 +387,6 @@ module.exports = {
   fetchSellerOrders,
   fetchAllOrdersAdmin,
   updateOrderStatus,
+  adminUpdateOrderStatus,
   cancelOrder,
 };

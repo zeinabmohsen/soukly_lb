@@ -14,7 +14,7 @@ const {
 
 // POST /orders — checkout: creates one order per store from cart items
 const checkout = asyncHandler(async (req, res) => {
-  const { items, shipping_address, payment_method, notes } = req.body;
+  const { items, shipping_address, payment_method, notes, coupon_code } = req.body;
 
   if (!shipping_address?.name || !shipping_address?.phone || !shipping_address?.address) {
     return res.status(400).json({ message: "shipping_address requires name, phone, and address" });
@@ -25,6 +25,7 @@ const checkout = asyncHandler(async (req, res) => {
     shipping_address,
     payment_method,
     notes,
+    coupon_code,
   });
 
   res.status(201).json({

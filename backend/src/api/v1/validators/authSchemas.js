@@ -42,4 +42,16 @@ const resetPasswordSchema = z.object({
   password: passwordSchema,
 });
 
-module.exports = { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema };
+const verifyEmailSchema = z.object({
+  token: z.string({ required_error: "token is required" }).min(10, "invalid token"),
+});
+
+const resendVerificationSchema = z.object({
+  email: z.string({ required_error: "email is required" }).trim().toLowerCase().email("invalid email"),
+});
+
+module.exports = {
+  registerSchema, loginSchema,
+  forgotPasswordSchema, resetPasswordSchema,
+  verifyEmailSchema, resendVerificationSchema,
+};

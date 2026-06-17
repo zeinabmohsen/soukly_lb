@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Search, Download, Package, Eye, Store, User as UserIcon, Phone, Mail, MapPin, CreditCard,
 } from "lucide-react"
-import { useGetAdminOrdersQuery, type Order } from "@/store/api/orderApi"
+import { useToast } from "@/hooks/use-toast"
+import { useGetAdminOrdersQuery, useUpdateAdminOrderStatusMutation, type Order } from "@/store/api/orderApi"
 import { ORDER_STATUS_CFG, ORDER_STATUSES } from "@/components/admin/admin-ui"
 
 export default function AdminOrdersPage() {
@@ -155,13 +156,36 @@ export default function AdminOrdersPage() {
         </CardContent>
       </Card>
 
-      <OrderDetailDialog order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+      <OrderDetailDialog order={selectedOrder} onClose={() => setSelectedOrder(null)} onUpdated={setSelectedOrder} />
     </div>
   )
 }
 
-function OrderDetailDialog({ order, onClose }: { order: Order | null; onClose: () => void }) {
+function OrderDetailDialog({
+  order,
+  onClose,
+  onUpdated,
+}: {
+  order: Order | null
+  onClose: () => void
+  onUpdated: (order: Order) => void
+}) {
+  const { toast } = useToast()
+  const [updateStatus, { isLoading }] = useUpdateAdminOrderStatusMutation()
   const statusCfg = order ? ORDER_STATUS_CFG[order.status] : null
+
+  const handleStatus = async (status: string) => {
+    if (!order || status === order.status) return
+    try {
+      const updated = await updateStatus({ id: order.id, status }).unwrap()
+      onUpdated(updated)
+      toast({ title: "Order updated", description: `Status set to ${ORDER_STATUS_CFG[status]?.label ?? status}` })
+    } catch (e) {
+      const msg = (e as { data?: { message?: string } })?.data?.message
+      toast({ title: "Update failed", description: msg, variant: "destructive" })
+    }
+  }
+
   return (
     <Dialog open={!!order} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -236,6 +260,29 @@ function OrderDetailDialog({ order, onClose }: { order: Order | null; onClose: (
                   </div>
                 </>
               )}
+
+              <Separator />
+
+              <div>
+                <p className="font-semibold mb-2">Update status</p>
+                <div className="flex flex-wrap gap-2">
+                  {ORDER_STATUSES.map((s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={s === order.status ? "default" : "outline"}
+                      disabled={isLoading || s === order.status}
+                      onClick={() => handleStatus(s)}
+                      className={s === order.status ? "" : "bg-transparent"}
+                    >
+                      {ORDER_STATUS_CFG[s]?.label ?? s}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Admin override — sets any status. Cancelling restores stock; reinstating re-reserves it.
+                </p>
+              </div>
 
               <Separator />
 

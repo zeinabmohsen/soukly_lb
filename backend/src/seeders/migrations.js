@@ -147,6 +147,30 @@ async function applyPasswordResetsTable(sequelize) {
   console.log("[migrate] password_resets table ensured");
 }
 
+async function applyEmailVerificationsTable(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "email_verifications" (
+       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+       "token_hash" VARCHAR(255) NOT NULL,
+       "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+       "used_at" TIMESTAMP WITH TIME ZONE,
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+     )`,
+    { type: QueryTypes.RAW },
+  );
+
+  await sequelize.query(
+    `CREATE INDEX IF NOT EXISTS "email_verifications_user_id_idx" ON "email_verifications"("user_id")`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] email_verifications table ensured");
+}
+
 async function applySubscriptionPaymentsTable(sequelize) {
   const { QueryTypes } = require("sequelize");
 
@@ -212,13 +236,81 @@ async function applySessionRotationGraceColumns(sequelize) {
   console.log("[migrate] sessions rotation-grace columns ensured");
 }
 
+async function applyPromotionsTable(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  // 1. discount_type ENUM
+  await sequelize.query(
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_promotions_discount_type') THEN
+         CREATE TYPE "enum_promotions_discount_type" AS ENUM ('percentage', 'fixed');
+       END IF;
+     END
+     $$;`,
+    { type: QueryTypes.RAW },
+  );
+
+  // 2. Table
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "promotions" (
+       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       "store_id" UUID NOT NULL REFERENCES "stores"("id") ON DELETE CASCADE,
+       "code" VARCHAR(255) NOT NULL,
+       "description" VARCHAR(255),
+       "discount_type" "enum_promotions_discount_type" NOT NULL DEFAULT 'percentage',
+       "discount_value" DECIMAL(10,2) NOT NULL,
+       "min_order_amount" DECIMAL(10,2),
+       "max_discount" DECIMAL(10,2),
+       "usage_limit" INTEGER,
+       "used_count" INTEGER NOT NULL DEFAULT 0,
+       "starts_at" TIMESTAMP WITH TIME ZONE,
+       "ends_at" TIMESTAMP WITH TIME ZONE,
+       "is_active" BOOLEAN NOT NULL DEFAULT true,
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+     )`,
+    { type: QueryTypes.RAW },
+  );
+
+  // 3. Indexes
+  await sequelize.query(
+    `CREATE INDEX IF NOT EXISTS "promotions_store_id_idx" ON "promotions"("store_id")`,
+    { type: QueryTypes.RAW },
+  );
+  await sequelize.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "promotions_store_id_code_unique" ON "promotions"("store_id", "code")`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] promotions table ensured");
+}
+
+async function applyOrderDiscountColumns(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discount_amount" DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    { type: QueryTypes.RAW },
+  );
+  await sequelize.query(
+    `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "coupon_code" VARCHAR(255)`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] orders discount columns ensured");
+}
+
 module.exports = {
+  applyPromotionsTable,
+  applyOrderDiscountColumns,
   applySubscriptionColumns,
   applySellerDraftColumn,
   applyAddressesTable,
   applyProductColorsColumn,
   applyProductCustomizationsColumn,
   applyPasswordResetsTable,
+  applyEmailVerificationsTable,
   applyStoreSocialColumns,
   applyUserPasswordVersionColumn,
   applySubscriptionPaymentsTable,

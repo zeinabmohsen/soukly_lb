@@ -197,6 +197,12 @@ export default function OrderDetailPage() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
+                {Number(order.discount_amount) > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount{order.coupon_code ? ` (${order.coupon_code})` : ""}</span>
+                    <span>−${Number(order.discount_amount).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Shipping</span>
                   <span className="text-green-600">Free</span>

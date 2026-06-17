@@ -3,10 +3,11 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { Op } = require("sequelize");
 const asyncHandler = require("../../../utils/asyncHandler");
-const { User, Session, PasswordReset } = require("../models");
+const { User, Session, PasswordReset, EmailVerification } = require("../models");
 const { createUser: createUserService } = require("../services/userService");
 const { jwtSecret } = require("../../../config");
-const { sendEmail } = require("../../../utils/email");
+const { sendEmail, sendVerificationEmail } = require("../../../utils/email");
+const { checkPasswordBreached } = require("../../../utils/passwordSafety");
 
 // Long-lived access token, beachbeds-style: the user stays logged in for a long
 // stretch without needing a silent refresh on every visit. The rotating refresh
@@ -22,6 +23,7 @@ const REFRESH_DAYS = 365;
 const REFRESH_GRACE_MS = 60 * 1000;
 const REFRESH_COOKIE_NAME = "soukly_refresh_token";
 const PASSWORD_RESET_TTL_MIN = 60;
+const EMAIL_VERIFY_TTL_HOURS = 24;
 
 function isSecureRequest(req) {
   if (req.secure) return true;
@@ -169,10 +171,29 @@ const register = asyncHandler(async (req, res) => {
     return sendError(res, "Email already in use", 409);
   }
 
+  // Reject passwords known to have appeared in a public breach (HIBP). Prevents
+  // Chrome's "Change your password" warning on fresh accounts.
+  const { breached } = await checkPasswordBreached(password);
+  if (breached) {
+    return sendError(
+      res,
+      "This password has appeared in a known data breach. Please choose a different one.",
+      400
+    );
+  }
+
   const user = await createUserService({ name, email, password, phone });
   const accessToken = signAccessToken(user);
   const session = await createSession(user.id);
   setRefreshCookie(req, res, session.refreshToken, session.expiresAt);
+
+  // Fire off the confirmation email — best-effort so a mail hiccup never blocks
+  // signup. The account is usable immediately; is_verified flips when they click.
+  try {
+    await issueEmailVerification(req, user);
+  } catch (err) {
+    console.error("[authController] signup verification email failed:", err.message);
+  }
 
   return sendResponse(res, { token: accessToken, user: formatUser(user) }, "Account created", 201);
 });
@@ -344,12 +365,18 @@ const forgotPassword = asyncHandler(async (req, res) => {
   return respond();
 });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Both reset and verification tokens are `<uuid>:<rawToken>`. We validate the id
+// is a real UUID here so a malformed id never reaches findByPk (which would
+// throw a DB "invalid input syntax for type uuid" error → 500 instead of a
+// clean 400). Shared by resetPassword and verifyEmail.
 function parseResetToken(input) {
   if (typeof input !== "string" || !input.includes(":")) return null;
   const colon = input.indexOf(":");
   const id = input.slice(0, colon);
   const rawToken = input.slice(colon + 1);
-  if (!id || !rawToken) return null;
+  if (!id || !rawToken || !UUID_RE.test(id)) return null;
   return { id, rawToken };
 }
 
@@ -361,6 +388,15 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
   if (!password || typeof password !== "string" || password.length < 6) {
     return sendError(res, "Password must be at least 6 characters", 400);
+  }
+
+  const { breached } = await checkPasswordBreached(password);
+  if (breached) {
+    return sendError(
+      res,
+      "This password has appeared in a known data breach. Please choose a different one.",
+      400
+    );
   }
 
   const row = await PasswordReset.findByPk(parsed.id);
@@ -385,4 +421,88 @@ const resetPassword = asyncHandler(async (req, res) => {
   return sendResponse(res, null, "Password updated. Please sign in with your new password.");
 });
 
-module.exports = { register, login, refreshToken, logout, getMe, forgotPassword, resetPassword };
+// ── Email verification ───────────────────────────────────────────────────────
+//
+// On signup (and on resend) we mint a single-use token, store only its bcrypt
+// hash, and email the bearer a link to /verify-email?token=<row_id>:<rawToken>.
+// POST /auth/verify-email consumes the token and flips users.is_verified.
+
+function buildVerifyUrl(req, token) {
+  const base = process.env.CLIENT_URL || "http://localhost:3000";
+  const url = new URL("/verify-email", base);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+// Creates a fresh verification token for `user`, invalidating any older unused
+// ones, and emails the link. Best-effort — throws only on unexpected DB errors;
+// the mail send itself is wrapped by callers so it never blocks the response.
+async function issueEmailVerification(req, user) {
+  await EmailVerification.destroy({
+    where: { user_id: user.id, used_at: null, expires_at: { [Op.gt]: new Date() } },
+  });
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const token_hash = await bcrypt.hash(rawToken, 10);
+  const expires_at = new Date(Date.now() + EMAIL_VERIFY_TTL_HOURS * 60 * 60 * 1000);
+  const row = await EmailVerification.create({ user_id: user.id, token_hash, expires_at });
+
+  const verifyUrl = buildVerifyUrl(req, `${row.id}:${rawToken}`);
+  await sendVerificationEmail({
+    to: user.email,
+    name: user.name,
+    verifyUrl,
+    ttlHours: EMAIL_VERIFY_TTL_HOURS,
+  });
+}
+
+const verifyEmail = asyncHandler(async (req, res) => {
+  const parsed = parseResetToken(req.body?.token); // same <id>:<raw> shape
+  if (!parsed) {
+    return sendError(res, "Invalid or malformed verification token", 400);
+  }
+
+  const row = await EmailVerification.findByPk(parsed.id);
+  const reject = () => sendError(res, "This verification link is invalid or has expired", 400);
+  if (!row || row.used_at || new Date(row.expires_at) < new Date()) return reject();
+
+  const matches = await bcrypt.compare(parsed.rawToken, row.token_hash);
+  if (!matches) return reject();
+
+  const user = await User.findByPk(row.user_id);
+  if (!user) return reject();
+
+  if (!user.is_verified) {
+    await user.update({ is_verified: true });
+  }
+  await row.update({ used_at: new Date() });
+
+  return sendResponse(res, { user: formatUser(user) }, "Email verified");
+});
+
+const resendVerification = asyncHandler(async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!email) {
+    return sendError(res, "email is required", 400);
+  }
+
+  // Always respond 200 — never reveal whether the email exists or its state.
+  const respond = () =>
+    sendResponse(res, null, "If that account exists and isn't verified yet, a new link has been sent.");
+
+  const user = await User.findOne({ where: { email } });
+  if (!user || user.is_verified) return respond();
+
+  try {
+    await issueEmailVerification(req, user);
+  } catch (err) {
+    console.error("[authController] resend verification failed:", err.message);
+  }
+  return respond();
+});
+
+module.exports = {
+  register, login, refreshToken, logout, getMe,
+  forgotPassword, resetPassword,
+  verifyEmail, resendVerification,
+};

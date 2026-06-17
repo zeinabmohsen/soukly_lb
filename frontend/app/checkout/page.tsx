@@ -7,6 +7,7 @@ import { useCart } from "@/hooks/useCart"
 import { useAppDispatch } from "@/hooks/useAppDispatch"
 import { applyStockSync } from "@/store/slices/cartSlice"
 import { useCheckoutMutation } from "@/store/api/orderApi"
+import { useValidatePromotionMutation } from "@/store/api/promotionApi"
 import {
   useGetMyAddressesQuery,
   useCreateMyAddressMutation,
@@ -22,7 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import { ShoppingBag, Loader2, CreditCard, Truck, MapPin, Plus, Check } from "lucide-react"
+import { ShoppingBag, Loader2, CreditCard, Truck, MapPin, Plus, Check, Tag, X } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -56,6 +57,13 @@ export default function CheckoutPage() {
   const [saveAddress, setSaveAddress] = useState(true)
   const [addressLabel, setAddressLabel] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<"cash_on_delivery" | "card">("cash_on_delivery")
+
+  // Coupon: a code applies to a single store's items in the cart.
+  const [validatePromotion, { isLoading: isValidatingCoupon }] = useValidatePromotionMutation()
+  const [couponInput, setCouponInput] = useState("")
+  const [appliedCoupon, setAppliedCoupon] = useState<
+    { code: string; storeId: string; storeName: string; discount: number } | null
+  >(null)
 
   // When addresses load, pick the default (or first) as the initial selection,
   // and flip to "new" mode if the user has no saved addresses.
@@ -116,6 +124,54 @@ export default function CheckoutPage() {
     city: a.city ?? "",
   })
 
+  // Mirror of the backend discount math, scoped to one store's subtotal.
+  const computeDiscount = (
+    promo: { discount_type: "percentage" | "fixed"; discount_value: number; max_discount: number | null },
+    storeSubtotal: number,
+  ) => {
+    let d = promo.discount_type === "percentage" ? storeSubtotal * (promo.discount_value / 100) : promo.discount_value
+    if (promo.discount_type === "percentage" && promo.max_discount != null) d = Math.min(d, promo.max_discount)
+    return Number(Math.min(d, storeSubtotal).toFixed(2))
+  }
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code) return
+    try {
+      const res = await validatePromotion({ code }).unwrap()
+      const { promotion } = res
+      const storeItems = items.filter((i) => i.storeId === promotion.store.id)
+      const storeSubtotal = storeItems.reduce((acc, i) => acc + i.price * i.quantity, 0)
+
+      if (storeItems.length === 0) {
+        return toast({
+          title: "Code doesn't apply",
+          description: `“${promotion.code}” is for ${promotion.store.name}, which isn't in your cart.`,
+          variant: "destructive",
+        })
+      }
+      if (promotion.min_order_amount != null && storeSubtotal < promotion.min_order_amount) {
+        return toast({
+          title: "Minimum not met",
+          description: `Spend $${promotion.min_order_amount.toFixed(2)} at ${promotion.store.name} to use this code.`,
+          variant: "destructive",
+        })
+      }
+
+      const discount = computeDiscount(promotion, storeSubtotal)
+      setAppliedCoupon({ code: promotion.code, storeId: promotion.store.id, storeName: promotion.store.name, discount })
+      toast({ title: "Code applied", description: `${promotion.code} — you save $${discount.toFixed(2)}` })
+    } catch (err: unknown) {
+      const msg = (err as { data?: { message?: string } })?.data?.message ?? "That code isn't valid"
+      toast({ title: "Couldn't apply code", description: msg, variant: "destructive" })
+    }
+  }
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponInput("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -153,6 +209,7 @@ export default function CheckoutPage() {
         items: items.map((i) => ({ product_id: i.id, quantity: i.quantity })),
         shipping_address: shipping,
         payment_method: paymentMethod,
+        coupon_code: appliedCoupon?.code,
       }).unwrap()
 
       clearCart()
@@ -363,11 +420,48 @@ export default function CheckoutPage() {
 
                 <Separator />
 
+                {/* Coupon */}
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between rounded-lg border border-green-500/30 bg-green-500/5 p-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Tag className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold font-mono truncate">{appliedCoupon.code}</p>
+                        <p className="text-xs text-muted-foreground truncate">Applied to {appliedCoupon.storeName}</p>
+                      </div>
+                    </div>
+                    <button type="button" onClick={handleRemoveCoupon} className="text-muted-foreground hover:text-destructive p-1" aria-label="Remove code">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Discount code"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleApplyCoupon() } }}
+                      className="font-mono uppercase"
+                    />
+                    <Button type="button" variant="outline" onClick={handleApplyCoupon} disabled={isValidatingCoupon || !couponInput.trim()} className="bg-transparent flex-shrink-0">
+                      {isValidatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                    </Button>
+                  </div>
+                )}
+
+                <Separator />
+
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
+                  {appliedCoupon && appliedCoupon.discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount ({appliedCoupon.code})</span>
+                      <span>−${appliedCoupon.discount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Shipping</span>
                     <span className="text-green-600">Free</span>
@@ -378,7 +472,7 @@ export default function CheckoutPage() {
 
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span className="text-primary">${subtotal.toFixed(2)}</span>
+                  <span className="text-primary">${Math.max(0, subtotal - (appliedCoupon?.discount ?? 0)).toFixed(2)}</span>
                 </div>
 
                 {mode === "saved" && selectedAddress && (

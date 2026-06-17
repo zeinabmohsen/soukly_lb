@@ -7,11 +7,11 @@ import Link from "next/link"
 import {
   Store, Package, BarChart3, ShoppingBag, Home,
   Settings, HelpCircle, Sparkles, LogOut, Star, ChevronRight,
-  CreditCard, X,
+  CreditCard, X, Ticket,
 } from "lucide-react"
 
 // Categories live as a tab inside /seller/products now — not a sidebar entry.
-// Inventory + Promotions were removed (no backend, were misleading mocks).
+// Inventory was removed (stock is edited inline per product).
 const navSections: {
   title: string
   items: { icon: typeof Home; label: string; href: string }[]
@@ -19,10 +19,11 @@ const navSections: {
   {
     title: "Main",
     items: [
-      { icon: Home,        label: "Overview",  href: "/seller/dashboard" },
-      { icon: Package,     label: "Products",  href: "/seller/products"  },
-      { icon: ShoppingBag, label: "Orders",    href: "/seller/orders"    },
-      { icon: BarChart3,   label: "Analytics", href: "/seller/analytics" },
+      { icon: Home,        label: "Overview",   href: "/seller/dashboard"   },
+      { icon: Package,     label: "Products",   href: "/seller/products"    },
+      { icon: ShoppingBag, label: "Orders",     href: "/seller/orders"      },
+      { icon: Ticket,      label: "Promotions", href: "/seller/promotions"  },
+      { icon: BarChart3,   label: "Analytics",  href: "/seller/analytics"   },
     ],
   },
   {

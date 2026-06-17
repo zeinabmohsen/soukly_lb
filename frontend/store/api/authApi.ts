@@ -54,6 +54,14 @@ export const authApi = baseApi.injectEndpoints({
     resetPassword: builder.mutation<{ message: string }, { token: string; password: string }>({
       query: (body) => ({ url: "/auth/reset-password", method: "POST", body }),
     }),
+    verifyEmail: builder.mutation<{ message: string }, { token: string }>({
+      query: (body) => ({ url: "/auth/verify-email", method: "POST", body }),
+      // The user's verified state changed — let anything reading the user refetch.
+      invalidatesTags: ["User"],
+    }),
+    resendVerification: builder.mutation<{ message: string }, { email: string }>({
+      query: (body) => ({ url: "/auth/resend-verification", method: "POST", body }),
+    }),
   }),
 })
 
@@ -65,4 +73,6 @@ export const {
   useGetMeQuery,
   useForgotPasswordMutation,
   useResetPasswordMutation,
+  useVerifyEmailMutation,
+  useResendVerificationMutation,
 } = authApi

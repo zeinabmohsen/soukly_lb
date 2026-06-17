@@ -1,7 +1,7 @@
 const asyncHandler = require("../../../utils/asyncHandler");
 const { buildPaginationParams, buildPaginationMeta } = require("../../../utils/pagination");
-const { fetchAllStoresAdmin, fetchStoreByIdAdmin, fetchPlatformBilling } = require("../services/storeService");
-const { fetchAllOrdersAdmin } = require("../services/orderService");
+const { fetchAllStoresAdmin, fetchStoreByIdAdmin, fetchPlatformBilling, adminUpdatePaymentStatus } = require("../services/storeService");
+const { fetchAllOrdersAdmin, adminUpdateOrderStatus } = require("../services/orderService");
 
 const VALID_STATUSES = new Set(["pending", "approved", "all"]);
 const VALID_ORDER_STATUSES = new Set([
@@ -65,9 +65,40 @@ const getAdminOrders = asyncHandler(async (req, res) => {
   });
 });
 
+// PATCH /admin/orders/:id/status — admin overrides an order's status to resolve
+// disputes (any store, any valid transition). Inventory is reconciled in the
+// service when moving in/out of "cancelled".
+const updateAdminOrderStatus = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  if (!status) {
+    return res.status(400).json({ message: "status is required" });
+  }
+  const order = await adminUpdateOrderStatus(req.params.id, status);
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+  res.status(200).json(order);
+});
+
+// PATCH /admin/billing/:id — admin updates a subscription payment's status
+// (mark paid / failed / refunded / pending) while Whish billing is pending.
+const updateAdminPayment = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  if (!status) {
+    return res.status(400).json({ message: "status is required" });
+  }
+  const payment = await adminUpdatePaymentStatus(req.params.id, status);
+  if (!payment) {
+    return res.status(404).json({ message: "Payment not found" });
+  }
+  res.status(200).json(payment);
+});
+
 module.exports = {
   getAdminStores,
   getAdminStoreById,
   getAdminOrders,
   getAdminBilling,
+  updateAdminOrderStatus,
+  updateAdminPayment,
 };

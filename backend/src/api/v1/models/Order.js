@@ -43,10 +43,21 @@ Order.init(
       allowNull: false,
       defaultValue: 5.00,
     },
+    // Coupon discount applied at checkout (0 when no code used).
+    discount_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // Snapshot of the promo code used, for the order record (null if none).
+    coupon_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     total: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      comment: "subtotal + shipping_fee — calculated at checkout, never recomputed",
+      comment: "subtotal - discount_amount + shipping_fee — calculated at checkout, never recomputed",
     },
     // Frozen snapshot of buyer's shipping info at order time
     shipping_address: {

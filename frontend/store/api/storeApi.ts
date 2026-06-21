@@ -66,6 +66,18 @@ export interface PaginatedStores {
   has_more: boolean
 }
 
+export type TrafficRange = "7days" | "30days" | "3months" | "year"
+
+export interface StoreTraffic {
+  series: { key: string; views: number; visitors: number }[]
+  totals: {
+    views: number
+    visitors: number
+    prev_views: number
+    prev_visitors: number
+  }
+}
+
 export type PaymentStatus = "paid" | "pending" | "failed" | "refunded"
 
 export interface SubscriptionPayment {
@@ -307,6 +319,15 @@ export const storeApi = baseApi.injectEndpoints({
       }),
       providesTags: ["Billing"],
     }),
+    // Public: fire-and-forget storefront view ping (traffic analytics).
+    trackStoreView: builder.mutation<void, { storeId: string; visitor_id?: string; product_id?: string }>({
+      query: ({ storeId, ...body }) => ({ url: `/stores/${storeId}/view`, method: "POST", body }),
+    }),
+    // Seller: traffic (views + unique visitors) for the analytics page.
+    getMyTraffic: builder.query<StoreTraffic, TrafficRange>({
+      query: (range) => ({ url: "/stores/me/analytics/views", params: { range } }),
+      providesTags: ["Traffic"],
+    }),
   }),
 })
 
@@ -332,4 +353,6 @@ export const {
   useUploadStoreImageMutation,
   useUpdateAdminPaymentMutation,
   useGetMyPaymentsQuery,
+  useTrackStoreViewMutation,
+  useGetMyTrafficQuery,
 } = storeApi

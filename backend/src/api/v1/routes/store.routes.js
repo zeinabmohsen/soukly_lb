@@ -12,6 +12,8 @@ const {
   startTrial,
   changeMyPlan,
   getMyPayments,
+  trackView,
+  getMyTraffic,
   deleteAnyStore,
 } = require("../controllers/storeController");
 const { uploadMiddleware, handleUpload } = require("../middlewares/upload");
@@ -36,9 +38,13 @@ router.get("/:slug", getStoreBySlug);
 router.get("/:storeId/categories", getCategories);
 // ?category= (store category slug) &search= &limit= &offset=
 router.get("/:slug/products", getProductsByStore);
+// Anonymous storefront view ping (no auth) — fire-and-forget traffic tracking.
+router.post("/:id/view", trackView);
 
 // ── Seller (own store) ────────────────────────────────────────────────────────
 router.get("/me/store", authorize(USER), getMyStore);
+// Seller traffic analytics (views + unique visitors). Static path before /:slug.
+router.get("/me/analytics/views", authorize(SELLER), getMyTraffic);
 // POST /stores is the "apply to become a seller" entry point — the applicant
 // is still a USER at this point, not yet an approved SELLER. Creating the
 // store flips them to seller_status='pending' (see controller).

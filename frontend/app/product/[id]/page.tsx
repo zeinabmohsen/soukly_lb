@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { Star, ShoppingCart, Heart, Share2, Check, Package, ChevronLeft, ChevronRight, Minus, Plus, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +17,8 @@ import { ProductCard } from "@/components/shared/product-card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useGetProductByIdQuery, useGetProductsQuery } from "@/store/api/productApi"
+import { useTrackStoreViewMutation } from "@/store/api/storeApi"
+import { getVisitorId } from "@/lib/visitor"
 import { useGetProductReviewsQuery, useCreateReviewMutation } from "@/store/api/reviewApi"
 import {
   useGetMyWishlistQuery,

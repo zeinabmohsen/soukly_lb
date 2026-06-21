@@ -315,7 +315,30 @@ async function applyOrderDiscountColumns(sequelize) {
   console.log("[migrate] orders discount columns ensured");
 }
 
+async function applyStoreViewsTable(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "store_views" (
+       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       "store_id" UUID NOT NULL REFERENCES "stores"("id") ON DELETE CASCADE,
+       "product_id" UUID REFERENCES "products"("id") ON DELETE SET NULL,
+       "visitor_id" VARCHAR(64),
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+     )`,
+    { type: QueryTypes.RAW },
+  );
+
+  await sequelize.query(
+    `CREATE INDEX IF NOT EXISTS "store_views_store_id_created_at_idx" ON "store_views"("store_id", "created_at")`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] store_views table ensured");
+}
+
 module.exports = {
+  applyStoreViewsTable,
   applyPromotionsTable,
   applyOrderDiscountColumns,
   applyUserSellerStatusSuspended,

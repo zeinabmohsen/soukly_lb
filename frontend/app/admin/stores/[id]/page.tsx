@@ -15,8 +15,9 @@ import {
 import {
   ArrowLeft, Check, X, DollarSign, Loader2, MapPin, Star, Mail, Phone, KeyRound,
   Package, ShoppingBag, Users, Receipt, ExternalLink, Calendar, TrendingUp,
-  Instagram, Facebook, Ban, RotateCcw,
+  Instagram, Facebook, Ban, RotateCcw, FileText, Tag, CreditCard,
 } from "lucide-react"
+import { getPlan } from "@/lib/plans"
 import {
   useGetAdminStoreDetailQuery,
   useApproveStoreMutation,
@@ -27,7 +28,7 @@ import { useResetUserPasswordMutation, useUpdateSellerStatusMutation } from "@/s
 import { useToast } from "@/hooks/use-toast"
 import {
   SUBSCRIPTION_LABEL, SUBSCRIPTION_BADGE_CLASS, SUBSCRIPTION_STATUSES,
-  PAYMENT_STATUS_CFG, ORDER_STATUS_CFG, SELLER_STATUS_CFG, initials,
+  PAYMENT_STATUS_CFG, SELLER_STATUS_CFG, initials,
 } from "@/components/admin/admin-ui"
 
 export default function AdminSellerDetailPage() {
@@ -108,7 +109,6 @@ export default function AdminSellerDetailPage() {
   const store = data?.store
   const stats = data?.stats
   const payments = data?.payments ?? []
-  const recentOrders = data?.recent_orders ?? []
   const subStatus: SubscriptionStatus = store?.subscription_status ?? "inactive"
   const ownerStatus = store?.owner?.seller_status
   const isSuspended = ownerStatus === "suspended"
@@ -116,10 +116,10 @@ export default function AdminSellerDetailPage() {
   const statCards = [
     { label: "Products",     value: stats?.product_count ?? 0,                          icon: Package },
     { label: "Orders",       value: stats?.order_count ?? 0,                            icon: ShoppingBag },
-    { label: "GMV",          value: `$${(stats?.gmv ?? 0).toFixed(0)}`,                 icon: TrendingUp },
+    { label: "GMV",          value: `$${Number(stats?.gmv ?? 0).toFixed(0)}`,           icon: TrendingUp },
     { label: "Followers",    value: stats?.follower_count ?? 0,                         icon: Users },
-    { label: "Rating",       value: stats?.rating ? stats.rating.toFixed(1) : "—",      icon: Star, hint: `${stats?.review_count ?? 0} reviews` },
-    { label: "Sub. revenue", value: `$${(stats?.subscription_revenue ?? 0).toFixed(0)}`, icon: Receipt },
+    { label: "Rating",       value: stats?.rating ? Number(stats.rating).toFixed(1) : "—", icon: Star, hint: `${stats?.review_count ?? 0} reviews` },
+    { label: "Sub. revenue", value: `$${Number(stats?.subscription_revenue ?? 0).toFixed(0)}`, icon: Receipt },
   ]
 
   return (
@@ -260,6 +260,51 @@ export default function AdminSellerDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Application details — what the seller submitted in "Become a seller" */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" /> Application details
+              </CardTitle>
+              {store.created_at && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Applied {new Date(store.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                </span>
+              )}
+            </CardHeader>
+            <CardContent>
+              <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <div className="space-y-0.5">
+                  <dt className="text-xs text-muted-foreground flex items-center gap-1.5"><ShoppingBag className="w-3.5 h-3.5" /> Store name</dt>
+                  <dd className="font-medium">{store.name}</dd>
+                </div>
+                <div className="space-y-0.5">
+                  <dt className="text-xs text-muted-foreground flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Category</dt>
+                  <dd className="font-medium">{store.category?.name ?? "—"}</dd>
+                </div>
+                <div className="space-y-0.5">
+                  <dt className="text-xs text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> City</dt>
+                  <dd className="font-medium">{store.location ?? "—"}</dd>
+                </div>
+                <div className="space-y-0.5">
+                  <dt className="text-xs text-muted-foreground flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Selected plan</dt>
+                  <dd className="font-medium">
+                    {store.plan_id
+                      ? `${getPlan(store.plan_id).name} · $${getPlan(store.plan_id).price}/mo`
+                      : "—"}
+                  </dd>
+                </div>
+                <div className="space-y-0.5 sm:col-span-2">
+                  <dt className="text-xs text-muted-foreground flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> Description</dt>
+                  <dd className={store.description ? "whitespace-pre-line" : "text-muted-foreground italic"}>
+                    {store.description || "No description provided."}
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {statCards.map((s) => {
@@ -355,34 +400,6 @@ export default function AdminSellerDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Recent orders */}
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Recent orders</CardTitle></CardHeader>
-            <CardContent>
-              {recentOrders.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No orders yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {recentOrders.map((o) => {
-                    const cfg = ORDER_STATUS_CFG[o.status]
-                    return (
-                      <div key={o.id} className="flex items-center gap-3 p-3 border rounded-lg text-sm">
-                        <Package className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">#{o.id.slice(0, 8)}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {o.shipping_address?.name ?? "Unknown buyer"} · {new Date(o.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <span className="font-semibold">${Number(o.total_amount ?? o.total).toFixed(2)}</span>
-                        <Badge variant="outline" className={cfg?.cls ?? ""}>{cfg?.label ?? o.status}</Badge>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       )}
     </div>

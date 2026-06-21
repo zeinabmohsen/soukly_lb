@@ -14,6 +14,7 @@ const Review        = require("./Review");
 const Address       = require("./Address");
 const SubscriptionPayment = require("./SubscriptionPayment");
 const Promotion     = require("./Promotion");
+const StoreView     = require("./StoreView");
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 User.hasMany(Session,   { foreignKey: "user_id", onDelete: "CASCADE" });
@@ -94,6 +95,12 @@ SubscriptionPayment.belongsTo(Store, { as: "store", foreignKey: "store_id" });
 Store.hasMany(Promotion,   { as: "promotions", foreignKey: "store_id", onDelete: "CASCADE" });
 Promotion.belongsTo(Store, { as: "store", foreignKey: "store_id" });
 
+// ── Store views (traffic analytics) ─────────────────────────────────────────────
+Store.hasMany(StoreView,    { as: "views", foreignKey: "store_id", onDelete: "CASCADE" });
+StoreView.belongsTo(Store,  { as: "store", foreignKey: "store_id" });
+Product.hasMany(StoreView,  { foreignKey: "product_id", onDelete: "SET NULL" });
+StoreView.belongsTo(Product, { as: "product", foreignKey: "product_id" });
+
 module.exports = {
   User, Session, PasswordReset, EmailVerification, GlobalCategory,
   Store, StoreCategory,
@@ -104,4 +111,5 @@ module.exports = {
   Address,
   SubscriptionPayment,
   Promotion,
+  StoreView,
 };

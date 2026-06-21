@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Star, MapPin, Share2, Heart, Check, Loader2, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,8 @@ import {
   useFollowStoreMutation,
   useUnfollowStoreMutation,
 } from "@/store/api/wishlistApi"
-import { useGetStoreCategoriesQuery } from "@/store/api/storeApi"
+import { useGetStoreCategoriesQuery, useTrackStoreViewMutation } from "@/store/api/storeApi"
+import { getVisitorId } from "@/lib/visitor"
 import { useToast } from "@/hooks/use-toast"
 import { useCart } from "@/hooks/useCart"
 import { ProductCard } from "@/components/shared/product-card"
@@ -57,6 +58,15 @@ export default function StorePageContent({ store, products, productsLoading }: S
   const [unfollowStore, { isLoading: isUnfollowing }] = useUnfollowStoreMutation()
   const following = followsData?.data?.some((entry) => entry.store_id === store.id) ?? false
   const isFollowMutating = isFollowing || isUnfollowing
+
+  // Record a storefront visit once per mount. Fire-and-forget — failures are
+  // swallowed so analytics never affects the shopper's experience.
+  const [trackStoreView] = useTrackStoreViewMutation()
+  useEffect(() => {
+    if (!store.id) return
+    trackStoreView({ storeId: store.id, visitor_id: getVisitorId() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.id])
 
   const { data: storeCategories } = useGetStoreCategoriesQuery(store.id)
   const categories = useMemo(

@@ -15,7 +15,10 @@ const {
   fetchMyPayments,
 } = require("../services/storeService");
 const { clearSellerDraft } = require("../services/userService");
+const { recordStoreView, fetchStoreTraffic } = require("../services/analyticsService");
 const { sendSellerDecisionEmail } = require("../../../utils/email");
+
+const VALID_TRAFFIC_RANGES = new Set(["7days", "30days", "3months", "year"]);
 
 // Public — marketplace listing
 const getAllStores = asyncHandler(async (req, res) => {
@@ -201,6 +204,25 @@ const getMyPayments = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// Public — record a storefront view (fire-and-forget from the browser).
+// Always 204s, even on a bad id, so view tracking never disrupts the buyer.
+const trackView = asyncHandler(async (req, res) => {
+  const { visitor_id, product_id } = req.body || {};
+  await recordStoreView({ storeId: req.params.id, productId: product_id, visitorId: visitor_id });
+  res.status(204).send();
+});
+
+// Seller — traffic analytics for own store (views + unique visitors over a range)
+const getMyTraffic = asyncHandler(async (req, res) => {
+  const store = await fetchStoreByOwner(req.user.id);
+  if (!store) {
+    return res.status(404).json({ message: "Store not found" });
+  }
+  const range = VALID_TRAFFIC_RANGES.has(req.query.range) ? req.query.range : "30days";
+  const traffic = await fetchStoreTraffic(store.id, range);
+  res.status(200).json(traffic);
+});
+
 // Admin — delete any store
 const deleteAnyStore = asyncHandler(async (req, res) => {
   const result = await deleteStore(req.params.id);
@@ -223,5 +245,7 @@ module.exports = {
   startTrial,
   changeMyPlan,
   getMyPayments,
+  trackView,
+  getMyTraffic,
   deleteAnyStore,
 };

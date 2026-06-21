@@ -18,6 +18,7 @@ const {
   applyPromotionsTable,
   applyOrderDiscountColumns,
   applyUserSellerStatusSuspended,
+  applyStoreViewsTable,
 } = require("./migrations");
 const { seedSubscriptionPayments } = require("./subscriptionPayments");
 
@@ -44,6 +45,7 @@ async function runSeeds() {
   await applyPromotionsTable(sequelize);
   await applyOrderDiscountColumns(sequelize);
   await applyUserSellerStatusSuspended(sequelize);
+  await applyStoreViewsTable(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Search, ShoppingBag, Sparkles, X } from "lucide-react"
+import { Search, ShoppingBag, Sparkles, X, ArrowLeft } from "lucide-react"
 import { useCart } from "@/hooks/useCart"
 import { AdvancedSearch } from "@/components/advanced-search"
 import CartSidebar from "@/components/cart-sidebar"
@@ -76,6 +76,18 @@ export function MarketplaceFloatingActions({ view }: { view: StorefrontView }) {
             expanded ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none",
           )}
         >
+          <button
+            onClick={() => {
+              router.push("/marketplace")
+              setExpanded(false)
+            }}
+            className="w-11 h-11 rounded-full bg-background border shadow-lg flex items-center justify-center hover:bg-muted transition-colors"
+            aria-label="Back to Soukly"
+            title="Back to Soukly"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => {
               setSearchOpen((s) => !s)

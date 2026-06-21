@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   Menu, X, Sparkles, ShoppingCart, LogOut, Store, LayoutDashboard, Package,
   ChevronDown, ChevronRight, BarChart3, User as UserIcon, Heart, ListOrdered, Shield, Clock,
-  ArrowRight, Home, Tag, HelpCircle, Settings, Info,
+  ArrowRight, Home, Tag, HelpCircle, Settings, Info, UserPlus,
   type LucideIcon,
 } from "lucide-react"
 import Link from "next/link"
@@ -416,7 +416,11 @@ export default function Navbar({ onCartClick, cartCount }: { onCartClick?: () =>
   }
   const primaryCta = useMemo<Cta>(() => {
     if (!isAuthenticated) {
-      return { label: "Start Selling", href: "/become-seller", icon: Sparkles, variant: "primary" }
+      // Buyer-first: a brand-new visitor's default action is to join, not to
+      // open a store. "Become a Seller" stays one deliberate click away (the
+      // secondary link beside Sign In on desktop, and the Start Selling card in
+      // the mobile menu) so genuine sellers can still find it.
+      return { label: "Sign up", href: "/signup", icon: UserPlus, variant: "primary" }
     }
     if (isAdmin) {
       return { label: "Admin", href: "/admin/dashboard", icon: Shield, variant: "primary" }
@@ -619,6 +623,12 @@ export default function Navbar({ onCartClick, cartCount }: { onCartClick?: () =>
               </DropdownMenu>
             ) : (
               <>
+                <Link href="/become-seller">
+                  <Button variant="ghost" className="gap-2">
+                    <Store className="h-4 w-4" />
+                    Sell on Soukly
+                  </Button>
+                </Link>
                 <Link href="/login">
                   <Button variant="ghost">Sign In</Button>
                 </Link>

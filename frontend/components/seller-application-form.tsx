@@ -327,7 +327,10 @@ export default function SellerApplicationForm() {
       {/* Definitely logged out → inline auth, single centered column */}
       {!authResolving && !isAuthenticated && (
         <div className="max-w-md mx-auto mb-12">
-          <InlineAuth />
+          <InlineAuth
+            title="Create your account to start selling"
+            description="You're applying to open a store. The same account also works for buying on Soukly."
+          />
           <p className="text-[11px] text-muted-foreground text-center mt-4">
             {totalStores ? `${totalStores}+ stores already on Soukly` : ""}
           </p>

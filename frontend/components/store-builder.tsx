@@ -259,6 +259,25 @@ export default function StoreBuilder() {
   const update = <K extends keyof StoreData>(field: K, value: StoreData[K]) =>
     setStoreData((prev) => ({ ...prev, [field]: value }))
 
+  // Picking a template turns the hero's visibility toggles back ON, so every
+  // template starts out showing its buttons, description, store name, eyebrow,
+  // etc. by default. Media/alignment/colors the seller already set are kept;
+  // they can still hide any element again afterwards.
+  const selectTemplate = (templateId: StoreData["template"]) =>
+    setStoreData((prev) => ({
+      ...prev,
+      template: templateId,
+      heroVariant: {
+        ...prev.heroVariant,
+        showEyebrow:     true,
+        showStoreName:   true,
+        showTagline:     true,
+        showDescription: true,
+        showPrimaryCta:  true,
+        showLogo:        true,
+      },
+    }))
+
   const handleSave = async () => {
     try {
       await updateMyStore({
@@ -747,7 +766,7 @@ export default function StoreBuilder() {
                               selected={storeData.template === t.id}
                               primaryColor={storeData.primaryColor}
                               secondaryColor={storeData.secondaryColor}
-                              onClick={() => update("template", t.id)}
+                              onClick={() => selectTemplate(t.id)}
                             />
                           ))}
                         </div>

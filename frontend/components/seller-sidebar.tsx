@@ -4,9 +4,10 @@ import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 import {
   Store, Package, BarChart3, ShoppingBag, Home,
-  Settings, HelpCircle, Sparkles, LogOut, Star, ChevronRight,
+  Settings, HelpCircle, Sparkles, LogOut, Star, ChevronRight, ChevronLeft,
   CreditCard, X, Ticket,
 } from "lucide-react"
 
@@ -45,9 +46,19 @@ const navSections: {
 interface SellerSidebarProps {
   open?: boolean
   onClose?: () => void
+  /** Desktop-only: render the narrow icon-only rail. Ignored on mobile (the
+   *  drawer always shows the full sidebar). */
+  collapsed?: boolean
+  /** Toggle the desktop collapsed state. */
+  onToggleCollapse?: () => void
 }
 
-export default function SellerSidebar({ open = false, onClose }: SellerSidebarProps = {}) {
+export default function SellerSidebar({
+  open = false,
+  onClose,
+  collapsed = false,
+  onToggleCollapse,
+}: SellerSidebarProps = {}) {
   const pathname = usePathname()
   const { user, logoutAsync } = useAuth()
 
@@ -81,13 +92,23 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
       />
 
     <aside
-      className={`w-72 lg:w-64 fixed inset-y-0 left-0 z-40 flex flex-col bg-background border-r border-border shadow-2xl lg:shadow-none transition-transform duration-300 ease-out lg:translate-x-0 ${
-        open ? "translate-x-0" : "-translate-x-full"
-      }`}
+      className={cn(
+        "w-72 fixed inset-y-0 left-0 z-40 flex flex-col bg-background border-r border-border shadow-2xl lg:shadow-none transition-[transform,width] duration-300 ease-out lg:translate-x-0",
+        collapsed ? "lg:w-20" : "lg:w-64",
+        open ? "translate-x-0" : "-translate-x-full",
+      )}
     >
-      {/* Header: logo + mobile close */}
-      <div className="flex-shrink-0 h-16 flex items-center justify-between gap-2 px-4 lg:px-5 border-b border-border">
-        <Link href="/" className="flex items-center gap-2 group min-w-0">
+      {/* Header: logo + collapse toggle (desktop) / close (mobile) */}
+      <div
+        className={cn(
+          "flex-shrink-0 h-16 flex items-center gap-2 px-4 lg:px-5 border-b border-border",
+          collapsed ? "justify-between lg:justify-center" : "justify-between",
+        )}
+      >
+        <Link
+          href="/"
+          className={cn("flex items-center gap-2 group min-w-0", collapsed && "lg:hidden")}
+        >
           <div className="relative flex-shrink-0">
             <Sparkles className="h-6 w-6 text-primary transition-transform group-hover:rotate-12" />
             <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full scale-0 group-hover:scale-100 transition-transform" />
@@ -99,6 +120,18 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
             Seller
           </span>
         </Link>
+
+        {/* Collapse / expand toggle — desktop only */}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden lg:flex flex-shrink-0 w-9 h-9 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors items-center justify-center"
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+
+        {/* Mobile close */}
         <button
           onClick={onClose}
           className="lg:hidden flex-shrink-0 w-9 h-9 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
@@ -110,14 +143,14 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
 
       {/* Store card */}
       <div className="flex-shrink-0 mx-3 mt-4 mb-2 rounded-2xl p-3 bg-gradient-to-br from-primary/8 via-accent/5 to-transparent border border-primary/15">
-        <div className="flex items-center gap-2.5">
+        <div className={cn("flex items-center gap-2.5", collapsed && "lg:justify-center")}>
           <div className="relative flex-shrink-0">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-primary/20">
               {initials}
             </div>
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className={cn("flex-1 min-w-0", collapsed && "lg:hidden")}>
             <p className="text-foreground text-sm font-semibold truncate">
               {user?.name}
             </p>
@@ -125,7 +158,7 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
               <span className="text-muted-foreground text-[11px]">Active store</span>
             </div>
           </div>
-          <div className="flex gap-0.5 flex-shrink-0">
+          <div className={cn("flex gap-0.5 flex-shrink-0", collapsed && "lg:hidden")}>
             {[1, 2, 3, 4, 5].map((s) => (
               <Star key={s} className={`w-2.5 h-2.5 ${s <= 4 ? "text-accent fill-accent" : "text-muted-foreground/30"}`} />
             ))}
@@ -140,7 +173,12 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
             key={section.title}
             className={idx > 0 ? "pt-4 mt-3 border-t border-border/60" : ""}
           >
-            <p className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">
+            <p
+              className={cn(
+                "text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2",
+                collapsed && "lg:hidden",
+              )}
+            >
               {section.title}
             </p>
             <div className="space-y-0.5">
@@ -151,16 +189,21 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
                   <Link
                     key={item.label}
                     href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
+                      collapsed && "lg:justify-center lg:px-0",
                       active
                         ? "bg-primary/10 text-primary border-l-[3px] border-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                    }`}
-                    style={active ? { paddingLeft: "calc(0.75rem - 3px)" } : {}}
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    )}
+                    style={active && !collapsed ? { paddingLeft: "calc(0.75rem - 3px)" } : {}}
                   >
                     <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-primary" : "group-hover:text-foreground"}`} />
-                    {item.label}
-                    {active && <ChevronRight className="ml-auto w-3.5 h-3.5 text-primary/50" />}
+                    <span className={cn(collapsed && "lg:hidden")}>{item.label}</span>
+                    {active && (
+                      <ChevronRight className={cn("ml-auto w-3.5 h-3.5 text-primary/50", collapsed && "lg:hidden")} />
+                    )}
                   </Link>
                 )
               })}
@@ -171,11 +214,16 @@ export default function SellerSidebar({ open = false, onClose }: SellerSidebarPr
 
       {/* User */}
       <div className="flex-shrink-0 px-3 pb-4 pt-3 border-t border-border">
-        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/60">
+        <div
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/60",
+            collapsed && "lg:flex-col lg:gap-2 lg:px-2",
+          )}
+        >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className={cn("flex-1 min-w-0", collapsed && "lg:hidden")}>
             <p className="text-foreground text-sm font-medium truncate">{user?.name}</p>
             <p className="text-muted-foreground text-xs truncate">{user?.email}</p>
           </div>

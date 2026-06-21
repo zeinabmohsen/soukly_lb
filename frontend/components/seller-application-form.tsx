@@ -32,14 +32,15 @@ import { useToast } from "@/hooks/use-toast"
 import { PLANS, getPlan, isValidPlanId, TRIAL_DAYS, type PlanId } from "@/lib/plans"
 import { SellerFunnelSteps } from "@/components/seller-funnel-steps"
 import { InlineAuth } from "@/components/inline-auth"
+import { LEBANON, districtsOf, formatLocation } from "@/lib/lebanon"
 
-const CITIES = ["Beirut", "Tripoli", "Sidon", "Tyre", "Zahle", "Jounieh", "Byblos", "Baalbek"]
 const DRAFT_SAVE_DEBOUNCE_MS = 800
 
 type FormData = {
   businessName: string
   businessCategory: string  // global category UUID
-  city: string
+  governorate: string       // Lebanon governorate (محافظة)
+  district: string          // district within the governorate (قضاء)
   businessDescription: string
   agreedToTerms: boolean
 }
@@ -47,7 +48,8 @@ type FormData = {
 const EMPTY: FormData = {
   businessName: "",
   businessCategory: "",
-  city: "",
+  governorate: "",
+  district: "",
   businessDescription: "",
   agreedToTerms: false,
 }
@@ -58,7 +60,8 @@ function hasDraftContent(d: FormData): boolean {
   return Boolean(
     d.businessName.trim() ||
     d.businessCategory ||
-    d.city ||
+    d.governorate ||
+    d.district ||
     d.businessDescription.trim(),
   )
 }
@@ -166,7 +169,7 @@ export default function SellerApplicationForm() {
 
   // Step 1 (store details) is the only step with required free-text inputs.
   const step1Valid = Boolean(
-    formData.businessName.trim() && formData.businessCategory && formData.city,
+    formData.businessName.trim() && formData.businessCategory && formData.governorate && formData.district,
   )
   const formValid = Boolean(step1Valid && formData.agreedToTerms)
 
@@ -174,7 +177,7 @@ export default function SellerApplicationForm() {
   // required fields; steps 2 (plan, always has a default) and 3 just move on.
   const goNext = () => {
     if (step === 1) {
-      setTouched({ businessName: true, businessCategory: true, city: true })
+      setTouched({ businessName: true, businessCategory: true, governorate: true, district: true })
       if (!step1Valid) return
     }
     setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s))
@@ -188,7 +191,7 @@ export default function SellerApplicationForm() {
       return
     }
     // Touch everything so missing-field errors appear
-    setTouched({ businessName: true, businessCategory: true, city: true })
+    setTouched({ businessName: true, businessCategory: true, governorate: true, district: true })
     // Guard: only the final step submits; earlier Enter-presses just advance.
     if (step < 3) {
       goNext()
@@ -205,7 +208,7 @@ export default function SellerApplicationForm() {
       await createStore({
         name: formData.businessName.trim(),
         description: formData.businessDescription.trim() || null,
-        location: formData.city || null,
+        location: formatLocation(formData.governorate, formData.district) || null,
         global_category_id: formData.businessCategory || null,
         plan_id: selectedPlanId,
       } as never).unwrap()
@@ -374,12 +377,11 @@ export default function SellerApplicationForm() {
                 />
               </FieldWrapper>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <FieldWrapper
-                  label="Category"
-                  required
-                  error={touched.businessCategory && !formData.businessCategory ? "Required" : null}
-                >
+              <FieldWrapper
+                label="Category"
+                required
+                error={touched.businessCategory && !formData.businessCategory ? "Required" : null}
+              >
                   <Select
                     value={formData.businessCategory}
                     onValueChange={(val) => {
@@ -396,23 +398,50 @@ export default function SellerApplicationForm() {
                       ))}
                     </SelectContent>
                   </Select>
-                </FieldWrapper>
+              </FieldWrapper>
+
+              <div className="grid sm:grid-cols-2 gap-4">
                 <FieldWrapper
-                  label="City"
+                  label="Governorate"
                   required
-                  error={touched.city && !formData.city ? "Required" : null}
+                  error={touched.governorate && !formData.governorate ? "Required" : null}
                 >
                   <Select
-                    value={formData.city}
+                    value={formData.governorate}
                     onValueChange={(val) => {
-                      updateFormData("city", val)
-                      markTouched("city")
+                      updateFormData("governorate", val)
+                      // Changing governorate invalidates the previously picked district.
+                      updateFormData("district", "")
+                      markTouched("governorate")
                     }}
                   >
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Where are you based?" /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Select governorate" /></SelectTrigger>
                     <SelectContent>
-                      {CITIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      {LEBANON.map((g) => (
+                        <SelectItem key={g.name} value={g.name}>{g.name} · {g.ar}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWrapper>
+                <FieldWrapper
+                  label="District"
+                  required
+                  error={touched.district && !formData.district ? "Required" : null}
+                >
+                  <Select
+                    value={formData.district}
+                    disabled={!formData.governorate}
+                    onValueChange={(val) => {
+                      updateFormData("district", val)
+                      markTouched("district")
+                    }}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder={formData.governorate ? "Select district" : "Pick a governorate first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {districtsOf(formData.governorate).map((d) => (
+                        <SelectItem key={d.name} value={d.name}>{d.name} · {d.ar}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -499,7 +528,7 @@ export default function SellerApplicationForm() {
                 {[
                   { label: "Store", value: formData.businessName.trim() || "—" },
                   { label: "Category", value: selectedCategory?.name ?? "—" },
-                  { label: "City", value: formData.city || "—" },
+                  { label: "Location", value: formatLocation(formData.governorate, formData.district) || "—" },
                   { label: "Description", value: formData.businessDescription.trim() || "—" },
                   { label: "Plan", value: `${selectedPlan.name} · $${selectedPlan.price}/mo` },
                 ].map((row) => (

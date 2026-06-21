@@ -12,8 +12,22 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const { isAuthenticated, isSeller, isHydrating } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Desktop collapsed rail — persisted so the choice sticks across visits.
+  const [collapsed, setCollapsed] = useState(false)
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    try {
+      if (localStorage.getItem("seller-sidebar-collapsed") === "1") setCollapsed(true)
+    } catch { /* localStorage unavailable — fall back to expanded */ }
+  }, [])
+
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c
+      try { localStorage.setItem("seller-sidebar-collapsed", next ? "1" : "0") } catch {}
+      return next
+    })
 
   useEffect(() => {
     // Don't redirect while /auth/me is still verifying the stored user —
@@ -34,9 +48,14 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen flex font-sans bg-gradient-to-b from-background to-muted/30">
-      <SellerSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <SellerSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapsed}
+      />
 
-      <div className="flex-1 flex flex-col min-h-screen lg:ml-64">
+      <div className={`flex-1 flex flex-col min-h-screen transition-[margin] duration-300 ${collapsed ? "lg:ml-20" : "lg:ml-64"}`}>
         {/* Mobile-only topbar with hamburger */}
         <div className="lg:hidden sticky top-0 z-20 h-14 flex items-center justify-between gap-3 px-4 bg-background/95 backdrop-blur-lg border-b border-border">
           <button

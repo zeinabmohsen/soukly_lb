@@ -4,6 +4,8 @@ const staticOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "https://soukly-lb.vercel.app",
+  "https://souklylb.com",
+  "https://www.souklylb.com",
 ];
 
 const envOrigins = (process.env.CORS_ORIGINS ?? "")

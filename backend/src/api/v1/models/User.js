@@ -47,8 +47,10 @@ User.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    // "suspended" = a previously-active seller the admin has stopped. Distinct
+    // from "rejected" (application denied) so the two cases stay readable.
     seller_status: {
-      type: DataTypes.ENUM("none", "pending", "approved", "rejected"),
+      type: DataTypes.ENUM("none", "pending", "approved", "rejected", "suspended"),
       defaultValue: "none",
     },
     is_admin: {

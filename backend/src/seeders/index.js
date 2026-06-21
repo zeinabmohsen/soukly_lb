@@ -17,6 +17,7 @@ const {
   applySessionRotationGraceColumns,
   applyPromotionsTable,
   applyOrderDiscountColumns,
+  applyUserSellerStatusSuspended,
 } = require("./migrations");
 const { seedSubscriptionPayments } = require("./subscriptionPayments");
 
@@ -42,6 +43,7 @@ async function runSeeds() {
   await applySessionRotationGraceColumns(sequelize);
   await applyPromotionsTable(sequelize);
   await applyOrderDiscountColumns(sequelize);
+  await applyUserSellerStatusSuspended(sequelize);
 
   await seedGlobalCategories(GlobalCategory);
   await seedSampleData({ User, Store, StoreCategory, Product, GlobalCategory });

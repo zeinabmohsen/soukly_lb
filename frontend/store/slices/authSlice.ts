@@ -10,7 +10,7 @@ export interface User {
   // server-side from the boolean flags below, which are kept for finer checks.
   role: "user" | "seller" | "admin"
   is_seller: boolean
-  seller_status: "none" | "pending" | "approved" | "rejected"
+  seller_status: "none" | "pending" | "approved" | "rejected" | "suspended"
   is_admin: boolean
   is_verified: boolean
 }

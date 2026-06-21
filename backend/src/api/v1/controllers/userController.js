@@ -3,6 +3,7 @@ const {
   fetchUserById,
   updateUser: updateUserService,
   deleteUser: deleteUserService,
+  setSellerStatus,
   getSellerDraft,
   setSellerDraft,
   clearSellerDraft,
@@ -10,7 +11,7 @@ const {
 const { buildPaginationParams, buildPaginationMeta } = require("../../../utils/pagination");
 const asyncHandler = require("../../../utils/asyncHandler");
 const { sendSellerDecisionEmail } = require("../../../utils/email");
-const { Store, Session } = require("../models");
+const { Session } = require("../models");
 
 const getAllUsers = asyncHandler(async (req, res) => {
   const { limit, offset } = buildPaginationParams(req.query);
@@ -48,29 +49,22 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
-// Admin only: approve or reject a seller application
+// Admin only: change a seller's status (approve / reject / suspend / re-queue).
+// The service keeps the User flags, the Store's visibility, and the seller's
+// sessions in sync — see setSellerStatus. Invalid statuses throw a 400 there.
 const updateSellerStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const allowed = ["approved", "rejected", "pending"];
-  if (!allowed.includes(status)) {
-    return res.status(400).json({ message: "status must be approved, rejected, or pending" });
-  }
 
-  const user = await fetchUserById(req.params.id);
-  if (!user) {
+  const result = await setSellerStatus(req.params.id, status);
+  if (!result) {
     return res.status(404).json({ message: "User not found" });
   }
+  const { user, store } = result;
 
-  await user.update({
-    seller_status: status,
-    is_seller: status === "approved",
-  });
-
-  // Email the applicant on a definitive decision (not on a reset to "pending").
-  // Best-effort — a mail failure must not fail the status change.
+  // Email the applicant on a definitive accept/deny (not on suspend or a reset
+  // to "pending"). Best-effort — a mail failure must not fail the status change.
   if (status === "approved" || status === "rejected") {
     try {
-      const store = await Store.findOne({ where: { owner_id: user.id }, attributes: ["name"] });
       await sendSellerDecisionEmail({
         to: user.email,
         name: user.name,

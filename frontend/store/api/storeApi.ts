@@ -47,7 +47,15 @@ export interface Store {
   category?: { id: string; name: string; slug: string; icon?: string }
   StoreCategories?: StoreCategory[]
   // Present on admin endpoints (GET /admin/stores, /admin/stores/:id) only.
-  owner?: { id: string; name: string; email: string; phone?: string | null; created_at?: string }
+  owner?: {
+    id: string
+    name: string
+    email: string
+    phone?: string | null
+    created_at?: string
+    is_seller?: boolean
+    seller_status?: "none" | "pending" | "approved" | "rejected" | "suspended"
+  }
 }
 
 export interface PaginatedStores {
@@ -115,7 +123,15 @@ export interface AdminBilling {
 // Admin: full operational detail for a single store.
 export interface AdminStoreDetail {
   store: Store & {
-    owner?: { id: string; name: string; email: string; phone: string | null; created_at: string }
+    owner?: {
+      id: string
+      name: string
+      email: string
+      phone: string | null
+      created_at: string
+      is_seller?: boolean
+      seller_status?: "none" | "pending" | "approved" | "rejected" | "suspended"
+    }
     created_at?: string
     review_count?: number
   }

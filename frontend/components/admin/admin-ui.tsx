@@ -49,6 +49,15 @@ export const PLAN_BAR_CLASS: Record<string, string> = {
   premium: "bg-amber-500",
 }
 
+// Seller lifecycle badge (User.seller_status). "suspended" = stopped after
+// being active; distinct from "rejected" (application denied).
+export const SELLER_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  approved:  { label: "Active seller", cls: "bg-green-500/15 text-green-600 border-green-500/30" },
+  pending:   { label: "Pending review", cls: "bg-amber-500/15 text-amber-600 border-amber-500/30" },
+  rejected:  { label: "Rejected",      cls: "bg-red-500/15 text-red-600 border-red-500/30" },
+  suspended: { label: "Suspended",     cls: "bg-red-500/15 text-red-600 border-red-500/30 line-through" },
+}
+
 export const PAYMENT_STATUS_CFG: Record<PaymentStatus, { label: string; cls: string }> = {
   paid:     { label: "Paid",     cls: "bg-green-500/15 text-green-600 border-green-500/30" },
   pending:  { label: "Pending",  cls: "bg-amber-500/15 text-amber-600 border-amber-500/30" },

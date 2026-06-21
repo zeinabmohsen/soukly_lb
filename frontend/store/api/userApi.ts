@@ -33,9 +33,14 @@ export const userApi = baseApi.injectEndpoints({
       query: ({ id, ...data }) => ({ url: `/users/${id}`, method: "PATCH", body: data }),
       invalidatesTags: (_r, _e, { id }) => [{ type: "User", id }, "User"],
     }),
-    updateSellerStatus: builder.mutation<User, { id: string; status: "approved" | "rejected" | "pending" }>({
+    updateSellerStatus: builder.mutation<
+      User,
+      { id: string; status: "approved" | "rejected" | "pending" | "suspended" }
+    >({
+      // Also invalidates Store: changing seller status flips the store's
+      // visibility (is_approved), so admin store lists/detail must refetch.
       query: ({ id, status }) => ({ url: `/users/${id}/seller-status`, method: "PATCH", body: { status } }),
-      invalidatesTags: ["User"],
+      invalidatesTags: ["User", "Store"],
     }),
     // Admin: reset a user's password
     resetUserPassword: builder.mutation<{ message: string }, { id: string; password: string }>({

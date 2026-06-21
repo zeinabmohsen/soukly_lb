@@ -286,6 +286,20 @@ async function applyPromotionsTable(sequelize) {
   console.log("[migrate] promotions table ensured");
 }
 
+async function applyUserSellerStatusSuspended(sequelize) {
+  const { QueryTypes } = require("sequelize");
+
+  // Add the "suspended" value to the existing users.seller_status ENUM. Sequelize
+  // names the type enum_<table>_<column>. ALTER TYPE ... ADD VALUE can't run
+  // inside a transaction, but the seeder runs statements unwrapped, so this is safe.
+  await sequelize.query(
+    `ALTER TYPE "enum_users_seller_status" ADD VALUE IF NOT EXISTS 'suspended'`,
+    { type: QueryTypes.RAW },
+  );
+
+  console.log("[migrate] users.seller_status 'suspended' value ensured");
+}
+
 async function applyOrderDiscountColumns(sequelize) {
   const { QueryTypes } = require("sequelize");
 
@@ -304,6 +318,7 @@ async function applyOrderDiscountColumns(sequelize) {
 module.exports = {
   applyPromotionsTable,
   applyOrderDiscountColumns,
+  applyUserSellerStatusSuspended,
   applySubscriptionColumns,
   applySellerDraftColumn,
   applyAddressesTable,

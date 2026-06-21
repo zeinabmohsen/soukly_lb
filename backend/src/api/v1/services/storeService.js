@@ -102,7 +102,7 @@ async function fetchAllStoresAdmin({ limit, offset, status = "all", search }) {
     order: [["created_at", "DESC"]],
     include: [
       { model: GlobalCategory, as: "category", attributes: ["id", "name", "slug", "icon"] },
-      { model: User, as: "owner", attributes: ["id", "name", "email", "phone"] },
+      { model: User, as: "owner", attributes: ["id", "name", "email", "phone", "is_seller", "seller_status"] },
     ],
   });
 
@@ -117,7 +117,7 @@ async function fetchStoreByIdAdmin(id) {
   const store = await Store.findByPk(id, {
     include: [
       ...PUBLIC_STORE_INCLUDES,
-      { model: User, as: "owner", attributes: ["id", "name", "email", "phone", "created_at"] },
+      { model: User, as: "owner", attributes: ["id", "name", "email", "phone", "created_at", "is_seller", "seller_status"] },
     ],
   });
   if (!store) return null;

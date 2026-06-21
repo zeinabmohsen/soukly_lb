@@ -15,7 +15,7 @@ import {
 import {
   ArrowLeft, Check, X, DollarSign, Loader2, MapPin, Star, Mail, Phone, KeyRound,
   Package, ShoppingBag, Users, Receipt, ExternalLink, Calendar, TrendingUp,
-  Instagram, Facebook,
+  Instagram, Facebook, Ban, RotateCcw,
 } from "lucide-react"
 import {
   useGetAdminStoreDetailQuery,
@@ -23,11 +23,11 @@ import {
   useSetStoreSubscriptionMutation,
   type SubscriptionStatus,
 } from "@/store/api/storeApi"
-import { useResetUserPasswordMutation } from "@/store/api/userApi"
+import { useResetUserPasswordMutation, useUpdateSellerStatusMutation } from "@/store/api/userApi"
 import { useToast } from "@/hooks/use-toast"
 import {
   SUBSCRIPTION_LABEL, SUBSCRIPTION_BADGE_CLASS, SUBSCRIPTION_STATUSES,
-  PAYMENT_STATUS_CFG, ORDER_STATUS_CFG, initials,
+  PAYMENT_STATUS_CFG, ORDER_STATUS_CFG, SELLER_STATUS_CFG, initials,
 } from "@/components/admin/admin-ui"
 
 export default function AdminSellerDetailPage() {
@@ -41,6 +41,7 @@ export default function AdminSellerDetailPage() {
   const [approveStore, { isLoading: isApproving }] = useApproveStoreMutation()
   const [setSubscription, { isLoading: isSubUpdating }] = useSetStoreSubscriptionMutation()
   const [resetPassword, { isLoading: isResetting }] = useResetUserPasswordMutation()
+  const [setSellerStatus, { isLoading: isStatusUpdating }] = useUpdateSellerStatusMutation()
 
   const handleApprove = async (approved: boolean) => {
     setBusy(true)
@@ -59,6 +60,29 @@ export default function AdminSellerDetailPage() {
     try {
       await setSubscription({ id: storeId, subscription_status: status }).unwrap()
       toast({ title: "Subscription updated", description: `Status set to ${SUBSCRIPTION_LABEL[status]}` })
+    } catch {
+      toast({ title: "Action failed", variant: "destructive" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Stop (suspend) or reactivate the seller. Suspending hides the storefront and
+  // logs the seller out; reactivating re-approves them. Both run through the
+  // user-status endpoint, which keeps the User flags and the Store in sync.
+  const handleSellerStatus = async (ownerId: string, ownerName: string, suspend: boolean) => {
+    if (suspend && !window.confirm(
+      `Stop ${ownerName}? Their storefront will be hidden from the marketplace and they'll be logged out immediately. Their data, store, and payment history are kept — you can reactivate anytime.`,
+    )) return
+    setBusy(true)
+    try {
+      await setSellerStatus({ id: ownerId, status: suspend ? "suspended" : "approved" }).unwrap()
+      toast({
+        title: suspend ? "Seller stopped" : "Seller reactivated",
+        description: suspend
+          ? `${ownerName}'s storefront is hidden and they've been signed out.`
+          : `${ownerName}'s storefront is live again.`,
+      })
     } catch {
       toast({ title: "Action failed", variant: "destructive" })
     } finally {
@@ -86,6 +110,8 @@ export default function AdminSellerDetailPage() {
   const payments = data?.payments ?? []
   const recentOrders = data?.recent_orders ?? []
   const subStatus: SubscriptionStatus = store?.subscription_status ?? "inactive"
+  const ownerStatus = store?.owner?.seller_status
+  const isSuspended = ownerStatus === "suspended"
 
   const statCards = [
     { label: "Products",     value: stats?.product_count ?? 0,                          icon: Package },
@@ -136,6 +162,11 @@ export default function AdminSellerDetailPage() {
                       {SUBSCRIPTION_LABEL[subStatus]}
                     </Badge>
                     {store.plan_id && <Badge variant="outline" className="capitalize bg-muted/50">{store.plan_id}</Badge>}
+                    {isSuspended && (
+                      <Badge variant="outline" className={SELLER_STATUS_CFG.suspended.cls}>
+                        {SELLER_STATUS_CFG.suspended.label}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2 flex-wrap">
                     {store.owner?.name && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{store.owner.name}</span>}
@@ -153,19 +184,43 @@ export default function AdminSellerDetailPage() {
               <Separator className="my-4" />
 
               <div className="flex items-center gap-2 flex-wrap">
-                {!store.is_approved && (
-                  <Button className="gap-1.5 bg-green-600 hover:bg-green-700" onClick={() => handleApprove(true)} disabled={busy || isApproving}>
-                    {busy && isApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve
-                  </Button>
-                )}
-                {store.is_approved ? (
-                  <Button variant="outline" className="gap-1.5 bg-transparent text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleApprove(false)} disabled={busy || isApproving}>
-                    <X className="w-4 h-4" /> Revoke approval
-                  </Button>
+                {isSuspended ? (
+                  store.owner?.id && (
+                    <Button
+                      className="gap-1.5 bg-green-600 hover:bg-green-700"
+                      onClick={() => handleSellerStatus(store.owner!.id, store.owner!.name, false)}
+                      disabled={busy || isStatusUpdating}
+                    >
+                      {busy && isStatusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} Reactivate seller
+                    </Button>
+                  )
                 ) : (
-                  <Button variant="destructive" className="gap-1.5" onClick={() => handleApprove(false)} disabled={busy || isApproving}>
-                    <X className="w-4 h-4" /> Reject
-                  </Button>
+                  <>
+                    {!store.is_approved && (
+                      <Button className="gap-1.5 bg-green-600 hover:bg-green-700" onClick={() => handleApprove(true)} disabled={busy || isApproving}>
+                        {busy && isApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve
+                      </Button>
+                    )}
+                    {store.is_approved ? (
+                      <Button variant="outline" className="gap-1.5 bg-transparent text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleApprove(false)} disabled={busy || isApproving}>
+                        <X className="w-4 h-4" /> Revoke approval
+                      </Button>
+                    ) : (
+                      <Button variant="destructive" className="gap-1.5" onClick={() => handleApprove(false)} disabled={busy || isApproving}>
+                        <X className="w-4 h-4" /> Reject
+                      </Button>
+                    )}
+                    {store.owner?.id && (
+                      <Button
+                        variant="destructive"
+                        className="gap-1.5"
+                        onClick={() => handleSellerStatus(store.owner!.id, store.owner!.name, true)}
+                        disabled={busy || isStatusUpdating}
+                      >
+                        <Ban className="w-4 h-4" /> Stop seller
+                      </Button>
+                    )}
+                  </>
                 )}
 
                 <DropdownMenu>

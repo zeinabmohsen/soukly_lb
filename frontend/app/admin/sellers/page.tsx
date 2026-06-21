@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Store, Search, Star, Check, Loader2, DollarSign, Eye, ExternalLink, Mail, ChevronRight,
+  Ban, RotateCcw,
 } from "lucide-react"
 import {
   useGetAdminStoresQuery,
@@ -21,10 +22,11 @@ import {
   useSetStoreSubscriptionMutation,
   type SubscriptionStatus,
 } from "@/store/api/storeApi"
+import { useUpdateSellerStatusMutation } from "@/store/api/userApi"
 import { useToast } from "@/hooks/use-toast"
 import {
   SUBSCRIPTION_LABEL, SUBSCRIPTION_BADGE_CLASS, SUBSCRIPTION_STATUSES,
-  EmptyHint, initials,
+  SELLER_STATUS_CFG, EmptyHint, initials,
 } from "@/components/admin/admin-ui"
 
 type StatusFilter = "all" | "approved" | "pending"
@@ -44,6 +46,7 @@ function SellersInner() {
   const { data, isLoading } = useGetAdminStoresQuery({ status: "all" }, { skip: !isAdmin })
   const [approveStore, { isLoading: isApproving }] = useApproveStoreMutation()
   const [setSubscription, { isLoading: isSubUpdating }] = useSetStoreSubscriptionMutation()
+  const [setSellerStatus, { isLoading: isStatusUpdating }] = useUpdateSellerStatusMutation()
 
   const stores = useMemo(() => data?.data ?? [], [data])
 
@@ -67,6 +70,24 @@ function SellersInner() {
     try {
       await approveStore({ id: storeId, approved }).unwrap()
       toast({ title: approved ? "Store approved" : "Approval revoked" })
+    } catch {
+      toast({ title: "Action failed", variant: "destructive" })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // Stop (suspend) or reactivate a seller from the list. Targets the store
+  // owner; the endpoint keeps the User flags and the Store visibility in sync
+  // and logs a suspended seller out immediately.
+  const handleSellerStatus = async (ownerId: string, ownerName: string, storeId: string, suspend: boolean) => {
+    if (suspend && !window.confirm(
+      `Stop ${ownerName}? Their storefront will be hidden and they'll be logged out. Data & payment history are kept — you can reactivate anytime.`,
+    )) return
+    setProcessingId(storeId)
+    try {
+      await setSellerStatus({ id: ownerId, status: suspend ? "suspended" : "approved" }).unwrap()
+      toast({ title: suspend ? "Seller stopped" : "Seller reactivated" })
     } catch {
       toast({ title: "Action failed", variant: "destructive" })
     } finally {
@@ -134,6 +155,7 @@ function SellersInner() {
                 const subStatus = store.subscription_status ?? "inactive"
                 const trialDate = store.trial_ends_at ? new Date(store.trial_ends_at) : null
                 const busy = processingId === store.id
+                const ownerSuspended = store.owner?.seller_status === "suspended"
                 return (
                   <div
                     key={store.id}
@@ -170,6 +192,11 @@ function SellersInner() {
 
                     {/* Status badges */}
                     <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+                      {ownerSuspended && (
+                        <Badge variant="outline" className={SELLER_STATUS_CFG.suspended.cls}>
+                          {SELLER_STATUS_CFG.suspended.label}
+                        </Badge>
+                      )}
                       <Badge variant={store.is_approved ? "default" : "secondary"}>
                         {store.is_approved ? "Approved" : "Pending"}
                       </Badge>
@@ -213,6 +240,27 @@ function SellersInner() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+
+                      {store.owner?.id && (
+                        ownerSuspended ? (
+                          <Button
+                            size="sm" className="gap-1 bg-green-600 hover:bg-green-700"
+                            onClick={() => handleSellerStatus(store.owner!.id, store.owner!.name, store.id, false)}
+                            disabled={busy || isStatusUpdating}
+                          >
+                            <RotateCcw className="w-3 h-3" /><span className="hidden sm:inline">Reactivate</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm" variant="outline"
+                            className="gap-1 bg-transparent text-destructive border-destructive/30 hover:bg-destructive/5"
+                            onClick={() => handleSellerStatus(store.owner!.id, store.owner!.name, store.id, true)}
+                            disabled={busy || isStatusUpdating}
+                          >
+                            <Ban className="w-3 h-3" /><span className="hidden sm:inline">Stop</span>
+                          </Button>
+                        )
+                      )}
 
                       <Link href={`/store/${store.slug}`} target="_blank" className="hidden lg:block">
                         <Button size="sm" variant="ghost" className="gap-1">
